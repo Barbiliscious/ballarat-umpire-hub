@@ -18,6 +18,7 @@ import ManageTeams from "./pages/admin/ManageTeams";
 import ManageFixtures from "./pages/admin/ManageFixtures";
 import ManageUsers from "./pages/admin/ManageUsers";
 import AuditLog from "./pages/admin/AuditLog";
+import AdminVoteSubmit from "./pages/admin/AdminVoteSubmit";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="submissions" element={<Submissions />} />
+              <Route path="submit-vote" element={<AdminVoteSubmit />} />
               <Route path="rounds" element={<ManageRounds />} />
               <Route path="divisions" element={<ManageDivisions />} />
               <Route path="teams" element={<ManageTeams />} />

@@ -1,20 +1,24 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Users, Trophy, Calendar } from "lucide-react";
+import { FileText, Users, Trophy, Calendar, Clock, CheckCircle } from "lucide-react";
 
 const Dashboard = () => {
-  const [stats, setStats] = useState({ submissions: 0, umpires: 0, teams: 0, rounds: 0 });
+  const [stats, setStats] = useState({ submissions: 0, pending: 0, approved: 0, umpires: 0, teams: 0, rounds: 0 });
 
   useEffect(() => {
     Promise.all([
-      supabase.from("vote_submissions").select("id", { count: "exact", head: true }),
+      supabase.from("vote_submissions").select("id", { count: "exact", head: true }).eq("is_deleted", false),
+      supabase.from("vote_submissions").select("id", { count: "exact", head: true }).eq("is_deleted", false).eq("is_approved", false),
+      supabase.from("vote_submissions").select("id", { count: "exact", head: true }).eq("is_deleted", false).eq("is_approved", true),
       supabase.from("profiles").select("id", { count: "exact", head: true }),
       supabase.from("teams").select("id", { count: "exact", head: true }),
       supabase.from("rounds").select("id", { count: "exact", head: true }),
-    ]).then(([subs, umps, teams, rounds]) => {
+    ]).then(([subs, pending, approved, umps, teams, rounds]) => {
       setStats({
         submissions: subs.count || 0,
+        pending: pending.count || 0,
+        approved: approved.count || 0,
         umpires: umps.count || 0,
         teams: teams.count || 0,
         rounds: rounds.count || 0,
@@ -24,6 +28,8 @@ const Dashboard = () => {
 
   const cards = [
     { label: "Total Submissions", value: stats.submissions, icon: FileText, color: "text-primary" },
+    { label: "Pending Approval", value: stats.pending, icon: Clock, color: "text-amber-500" },
+    { label: "Approved", value: stats.approved, icon: CheckCircle, color: "text-success" },
     { label: "Registered Umpires", value: stats.umpires, icon: Users, color: "text-primary" },
     { label: "Teams", value: stats.teams, icon: Trophy, color: "text-primary" },
     { label: "Rounds", value: stats.rounds, icon: Calendar, color: "text-primary" },
@@ -32,7 +38,7 @@ const Dashboard = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold">Dashboard</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {cards.map((c) => (
           <Card key={c.label}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">

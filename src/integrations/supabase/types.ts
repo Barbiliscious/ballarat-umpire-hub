@@ -297,37 +297,55 @@ export type Database = {
       vote_submissions: {
         Row: {
           away_team_id: string
+          deleted_at: string | null
+          deleted_by: string | null
           division_id: string
           fixture_id: string
           home_team_id: string
           id: string
+          is_approved: boolean
+          is_deleted: boolean
           is_locked: boolean
           round_id: string
           submitted_at: string
+          submitted_by_admin_id: string | null
+          submitted_by_admin_name: string | null
           umpire_id: string
           updated_at: string
         }
         Insert: {
           away_team_id: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           division_id: string
           fixture_id: string
           home_team_id: string
           id?: string
+          is_approved?: boolean
+          is_deleted?: boolean
           is_locked?: boolean
           round_id: string
           submitted_at?: string
+          submitted_by_admin_id?: string | null
+          submitted_by_admin_name?: string | null
           umpire_id: string
           updated_at?: string
         }
         Update: {
           away_team_id?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           division_id?: string
           fixture_id?: string
           home_team_id?: string
           id?: string
+          is_approved?: boolean
+          is_deleted?: boolean
           is_locked?: boolean
           round_id?: string
           submitted_at?: string
+          submitted_by_admin_id?: string | null
+          submitted_by_admin_name?: string | null
           umpire_id?: string
           updated_at?: string
         }
@@ -374,6 +392,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      has_admin_access: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -381,9 +400,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "umpire"
+      app_role: "admin" | "umpire" | "super_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -511,7 +531,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "umpire"],
+      app_role: ["admin", "umpire", "super_admin"],
     },
   },
 } as const
