@@ -18,6 +18,7 @@ import ManageTeams from "./pages/admin/ManageTeams";
 import ManageFixtures from "./pages/admin/ManageFixtures";
 import ManageUsers from "./pages/admin/ManageUsers";
 import AuditLog from "./pages/admin/AuditLog";
+import AdminVoteSubmit from "./pages/admin/AdminVoteSubmit";
 
 const queryClient = new QueryClient();
 
