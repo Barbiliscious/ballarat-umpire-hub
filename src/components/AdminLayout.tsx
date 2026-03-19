@@ -1,12 +1,18 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
-import { useEffect } from "react";
-import { LayoutDashboard, FileText, Settings, Users, LogOut, Trophy, MapPin, Calendar, Layers } from "lucide-react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { LayoutDashboard, FileText, Settings, Users, LogOut, Trophy, MapPin, Calendar, Layers, PlusCircle, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 const navItems = [
   { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
   { to: "/admin/submissions", icon: FileText, label: "Submissions" },
+  { to: "/admin/submit-vote", icon: PlusCircle, label: "Submit Vote" },
   { to: "/admin/rounds", icon: Calendar, label: "Rounds" },
   { to: "/admin/divisions", icon: Layers, label: "Divisions" },
   { to: "/admin/teams", icon: Trophy, label: "Teams" },
@@ -18,12 +24,38 @@ const navItems = [
 const AdminLayout = () => {
   const { user, isAdmin, isLoading, signOut } = useAuth();
   const navigate = useNavigate();
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     if (!isLoading && (!user || !isAdmin)) {
       navigate("/admin/login");
     }
   }, [user, isAdmin, isLoading, navigate]);
+
+  const handleChangePassword = async () => {
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    setChangingPassword(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setChangingPassword(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Password changed successfully");
+      setShowChangePassword(false);
+      setNewPassword("");
+      setConfirmPassword("");
+    }
+  };
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!user || !isAdmin) return null;
@@ -54,7 +86,15 @@ const AdminLayout = () => {
             </NavLink>
           ))}
         </nav>
-        <div className="p-3 border-t border-sidebar-border">
+        <div className="p-3 border-t border-sidebar-border space-y-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowChangePassword(true)}
+            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+          >
+            <KeyRound className="mr-2 h-4 w-4" /> Change Password
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -71,9 +111,14 @@ const AdminLayout = () => {
         <header className="md:hidden border-b bg-primary p-3">
           <div className="flex items-center justify-between">
             <span className="font-bold text-sm text-primary-foreground uppercase">BHA Admin</span>
-            <Button variant="ghost" size="sm" onClick={signOut} className="text-primary-foreground">
-              <LogOut className="h-4 w-4" />
-            </Button>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="sm" onClick={() => setShowChangePassword(true)} className="text-primary-foreground">
+                <KeyRound className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={signOut} className="text-primary-foreground">
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <nav className="flex gap-1 mt-2 overflow-x-auto pb-1">
             {navItems.map((item) => (
@@ -98,6 +143,28 @@ const AdminLayout = () => {
           <Outlet />
         </main>
       </div>
+
+      {/* Change Password Dialog */}
+      <Dialog open={showChangePassword} onOpenChange={setShowChangePassword}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>New Password</Label>
+              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" />
+            </div>
+            <div className="space-y-2">
+              <Label>Confirm Password</Label>
+              <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" />
+            </div>
+            <Button onClick={handleChangePassword} disabled={changingPassword} className="w-full">
+              {changingPassword ? "Changing..." : "Change Password"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

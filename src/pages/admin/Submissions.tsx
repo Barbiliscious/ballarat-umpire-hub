@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/lib/auth";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Search, Download, Lock, Unlock, Pencil } from "lucide-react";
+import { Search, Download, Lock, Unlock, CheckCircle, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 
 interface Submission {
@@ -20,7 +21,13 @@ interface Submission {
   home_team_id: string;
   away_team_id: string;
   is_locked: boolean;
+  is_approved: boolean;
+  is_deleted: boolean;
+  deleted_by: string | null;
+  deleted_at: string | null;
   submitted_at: string;
+  submitted_by_admin_id: string | null;
+  submitted_by_admin_name: string | null;
 }
 
 interface VoteLine {
@@ -33,6 +40,7 @@ interface VoteLine {
 }
 
 const Submissions = () => {
+  const { user } = useAuth();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [voteLines, setVoteLines] = useState<VoteLine[]>([]);
   const [rounds, setRounds] = useState<{ id: string; name: string }[]>([]);
@@ -42,9 +50,7 @@ const Submissions = () => {
   const [filterRound, setFilterRound] = useState("all");
   const [filterDivision, setFilterDivision] = useState("all");
   const [search, setSearch] = useState("");
-  const [editSub, setEditSub] = useState<Submission | null>(null);
-  const [editLines, setEditLines] = useState<VoteLine[]>([]);
-  const [saving, setSaving] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const fetchAll = async () => {
     const [subsRes, linesRes, roundsRes, divsRes, teamsRes, profilesRes] = await Promise.all([
@@ -55,7 +61,7 @@ const Submissions = () => {
       supabase.from("teams").select("id, name").order("name"),
       supabase.from("profiles").select("user_id, email, full_name"),
     ]);
-    if (subsRes.data) setSubmissions(subsRes.data);
+    if (subsRes.data) setSubmissions(subsRes.data as Submission[]);
     if (linesRes.data) setVoteLines(linesRes.data);
     if (roundsRes.data) setRounds(roundsRes.data);
     if (divsRes.data) setDivisions(divsRes.data);
@@ -72,6 +78,10 @@ const Submissions = () => {
   };
 
   const filtered = submissions.filter((s) => {
+    // Filter deleted
+    if (!showDeleted && s.is_deleted) return false;
+    if (showDeleted && !s.is_deleted) return false;
+
     if (filterRound !== "all" && s.round_id !== filterRound) return false;
     if (filterDivision !== "all" && s.division_id !== filterDivision) return false;
     if (search) {
@@ -96,36 +106,48 @@ const Submissions = () => {
     }
   };
 
-  const openEdit = (sub: Submission) => {
-    setEditSub(sub);
-    setEditLines(voteLines.filter((vl) => vl.submission_id === sub.id).sort((a, b) => b.votes - a.votes));
-  };
-
-  const updateEditLine = (idx: number, field: string, value: string) => {
-    setEditLines((prev) => {
-      const next = [...prev];
-      next[idx] = { ...next[idx], [field]: field === "player_number" ? parseInt(value) || 0 : value };
-      return next;
-    });
-  };
-
-  const saveEdit = async () => {
-    if (!editSub) return;
-    setSaving(true);
-    for (const line of editLines) {
-      await supabase
-        .from("vote_lines")
-        .update({ player_name: line.player_name, player_number: line.player_number, team_id: line.team_id })
-        .eq("id", line.id);
+  const approveSubmission = async (sub: Submission) => {
+    const { error } = await supabase
+      .from("vote_submissions")
+      .update({ is_approved: true })
+      .eq("id", sub.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Submission approved");
+      fetchAll();
     }
-    setSaving(false);
-    toast.success("Submission updated");
-    setEditSub(null);
-    fetchAll();
+  };
+
+  const softDelete = async (sub: Submission) => {
+    const { error } = await supabase
+      .from("vote_submissions")
+      .update({
+        is_deleted: true,
+        deleted_by: user?.id,
+        deleted_at: new Date().toISOString(),
+      })
+      .eq("id", sub.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Submission deleted");
+      fetchAll();
+    }
+  };
+
+  const restoreSubmission = async (sub: Submission) => {
+    const { error } = await supabase
+      .from("vote_submissions")
+      .update({ is_deleted: false, deleted_by: null, deleted_at: null })
+      .eq("id", sub.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Submission restored");
+      fetchAll();
+    }
   };
 
   const exportCsv = () => {
-    const rows = [["Round", "Division", "Umpire", "Home Team", "Away Team", "Votes", "Player", "Number", "Team", "Submitted"]];
+    const rows = [["Round", "Division", "Umpire", "Home Team", "Away Team", "Votes", "Player", "Number", "Team", "Status", "Submitted"]];
     filtered.forEach((s) => {
       const lines = voteLines.filter((vl) => vl.submission_id === s.id);
       lines.forEach((vl) => {
@@ -139,6 +161,7 @@ const Submissions = () => {
           vl.player_name,
           String(vl.player_number),
           getName(teams, vl.team_id),
+          s.is_approved ? "Approved" : "Pending",
           new Date(s.submitted_at).toLocaleDateString(),
         ]);
       });
@@ -163,7 +186,7 @@ const Submissions = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search umpire or team..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
@@ -182,6 +205,10 @@ const Submissions = () => {
             {divisions.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-2">
+          <Switch id="show-deleted" checked={showDeleted} onCheckedChange={setShowDeleted} />
+          <Label htmlFor="show-deleted" className="text-sm">Show Deleted</Label>
+        </div>
       </div>
 
       <Card>
@@ -204,11 +231,29 @@ const Submissions = () => {
               )}
               {filtered.map((s) => {
                 const lines = voteLines.filter((vl) => vl.submission_id === s.id).sort((a, b) => b.votes - a.votes);
+                const isAdminSubmitted = !!s.submitted_by_admin_id;
                 return (
-                  <TableRow key={s.id}>
+                  <TableRow
+                    key={s.id}
+                    className={`${s.is_deleted ? "opacity-50 line-through" : ""} ${isAdminSubmitted ? "bg-amber-50 dark:bg-amber-950/20" : ""}`}
+                  >
                     <TableCell className="font-medium">{getName(rounds, s.round_id)}</TableCell>
                     <TableCell>{getName(divisions, s.division_id)}</TableCell>
-                    <TableCell>{getUmpire(s.umpire_id)}</TableCell>
+                    <TableCell>
+                      <div>
+                        {getUmpire(s.umpire_id)}
+                        {isAdminSubmitted && (
+                          <div className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-0.5">
+                            Submitted by: {s.submitted_by_admin_name}
+                          </div>
+                        )}
+                        {s.is_deleted && s.deleted_by && (
+                          <div className="text-xs text-destructive font-medium mt-0.5">
+                            Deleted by: {getUmpire(s.deleted_by)}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-sm">
                       {getName(teams, s.home_team_id)} vs {getName(teams, s.away_team_id)}
                     </TableCell>
@@ -222,19 +267,35 @@ const Submissions = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={s.is_locked ? "secondary" : "default"} className={s.is_locked ? "" : "bg-success"}>
-                        {s.is_locked ? "Locked" : "Open"}
-                      </Badge>
+                      <div className="space-y-1">
+                        <Badge variant={s.is_approved ? "default" : "secondary"} className={s.is_approved ? "bg-success" : "bg-amber-500 text-white"}>
+                          {s.is_approved ? "Approved" : "Pending"}
+                        </Badge>
+                        {s.is_locked && (
+                          <Badge variant="outline" className="ml-1">Locked</Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex gap-1 justify-end">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(s)} title="Edit">
-                          <Pencil className="h-3.5 w-3.5" />
+                      {s.is_deleted ? (
+                        <Button variant="ghost" size="sm" onClick={() => restoreSubmission(s)} title="Restore">
+                          <Eye className="h-3.5 w-3.5" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => toggleLock(s)} title={s.is_locked ? "Reopen" : "Lock"}>
-                          {s.is_locked ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-                        </Button>
-                      </div>
+                      ) : (
+                        <div className="flex gap-1 justify-end">
+                          {!s.is_approved && (
+                            <Button variant="ghost" size="sm" onClick={() => approveSubmission(s)} title="Approve" className="text-success hover:text-success">
+                              <CheckCircle className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" onClick={() => toggleLock(s)} title={s.is_locked ? "Reopen" : "Lock"}>
+                            {s.is_locked ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => softDelete(s)} title="Delete" className="text-destructive hover:text-destructive">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
@@ -243,46 +304,6 @@ const Submissions = () => {
           </Table>
         </CardContent>
       </Card>
-
-      {/* Edit Dialog */}
-      <Dialog open={!!editSub} onOpenChange={(open) => !open && setEditSub(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Submission</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {editLines.map((line, idx) => (
-              <div key={line.id} className={`space-y-2 p-3 rounded-lg ${line.votes === 3 ? "vote-badge-3" : line.votes === 2 ? "vote-badge-2" : "vote-badge-1"}`}>
-                <div className="flex items-center gap-2">
-                  <Badge className={line.votes === 3 ? "bg-gold text-gold-foreground" : ""}>{line.votes} votes</Badge>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">Player Name</Label>
-                    <Input value={line.player_name} onChange={(e) => updateEditLine(idx, "player_name", e.target.value)} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Number</Label>
-                    <Input value={String(line.player_number)} onChange={(e) => updateEditLine(idx, "player_number", e.target.value)} inputMode="numeric" />
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xs">Team</Label>
-                  <Select value={line.team_id} onValueChange={(v) => updateEditLine(idx, "team_id", v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {teams.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            ))}
-            <Button onClick={saveEdit} disabled={saving} className="w-full">
-              {saving ? "Saving..." : "Save Changes"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
