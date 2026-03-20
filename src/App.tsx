@@ -46,6 +46,7 @@ const App = () => (
               <Route path="users" element={<ManageUsers />} />
               <Route path="audit" element={<AuditLog />} />
             </Route>
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
