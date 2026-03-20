@@ -59,8 +59,8 @@ const ResetPassword = () => {
       <div className="min-h-screen bg-secondary flex items-center justify-center p-4">
         <Card className="w-full max-w-sm text-center">
           <CardHeader>
-            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-              <CheckCircle className="h-6 w-6 text-green-600" />
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-success/10">
+              <CheckCircle className="h-6 w-6 text-success" />
             </div>
             <CardTitle>Password Updated</CardTitle>
             <CardDescription>You can now sign in with your new password.</CardDescription>
