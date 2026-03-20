@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import UmpireLogin from "./pages/UmpireLogin";
 import AdminLogin from "./pages/AdminLogin";
+import ResetPassword from "./pages/ResetPassword";
 import UmpireVote from "./pages/UmpireVote";
 import AdminLayout from "./components/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
@@ -45,6 +46,7 @@ const App = () => (
               <Route path="users" element={<ManageUsers />} />
               <Route path="audit" element={<AuditLog />} />
             </Route>
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
