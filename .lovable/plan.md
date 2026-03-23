@@ -1,52 +1,24 @@
 
 
-## Plan: Fix OTP emails to send codes (not magic links), add forgot password and password visibility to Admin Login
+## Plan: Convert umpire login to magic link flow
 
-### Problem Summary
+### Problem
 
-1. **Umpire OTP emails** are sending a magic link button ("Log In") instead of the 6-digit code. This is because the default Supabase email template only includes a magic link, not the OTP token.
-2. **Admin Login** is missing a "Forgot Password" button and a password visibility toggle (eye icon).
+The current umpire login uses `signInWithOtp` which sends a magic link email, but the UI expects a 6-digit code entry. When the umpire clicks the magic link, they land back on the app but nothing handles the automatic sign-in from the URL token — so they see the code entry form instead of being signed in.
 
----
+### Solution
 
-### 1. Fix OTP email template to show the 6-digit code
+Convert `UmpireLogin.tsx` to a simple magic link flow:
 
-Scaffold custom auth email templates using the `email_domain--scaffold_auth_email_templates` tool. This will create editable email templates in the project. Then modify the **Magic Link / OTP template** to display the `{{ .Token }}` (6-digit code) prominently instead of a clickable link.
+1. **Step 1 (email)**: Umpire enters email → calls `signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + '/umpire/vote' } })`
+2. **Step 2 (waiting)**: Show a "Check your email" message with a mail icon. No code input. Just a "Use a different email" button.
+3. **Auth callback handling**: The Supabase client's `onAuthStateChange` in `auth.tsx` already handles the session from the URL hash automatically. When the magic link redirects to `/umpire/vote`, the auth state picks up the session and the user is signed in.
 
-The email should say something like:
-> "Your verification code is: **{{ .Token }}**"
-> "Enter this code in the app to sign in."
-
-Remove or de-emphasize the magic link button.
-
----
-
-### 2. Admin Login — Forgot Password
-
-- Add a "Forgot Password?" link below the password field in `AdminLogin.tsx`
-- Toggle to a "forgot password" view that takes just the email and calls `supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/reset-password' })`
-- Create a new `/reset-password` page that:
-  - Detects the recovery token from the URL hash
-  - Shows a "Set new password" form
-  - Calls `supabase.auth.updateUser({ password })`
-- Add the route to `App.tsx`
-
----
-
-### 3. Admin Login — Password visibility toggle
-
-- Add `showPassword` state to `AdminLogin.tsx`
-- Toggle the password input `type` between `"password"` and `"text"`
-- Add an `Eye` / `EyeOff` icon button on the right side of the password input
-
----
-
-### Files to create/modify
+### Changes
 
 | File | Change |
 |------|--------|
-| Email templates (scaffolded) | Modify OTP template to show code, not link |
-| `src/pages/AdminLogin.tsx` | Add forgot password flow + password visibility toggle |
-| `src/pages/ResetPassword.tsx` | New page for password reset |
-| `src/App.tsx` | Add `/reset-password` route |
+| `src/pages/UmpireLogin.tsx` | Remove OTP verification step. Replace with "check your email" screen. Add `emailRedirectTo` to the `signInWithOtp` call. Remove `KeyRound` import and OTP state. |
+
+No new files or routes needed — the redirect goes straight to `/umpire/vote` which already checks auth state.
 
