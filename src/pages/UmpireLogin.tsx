@@ -5,45 +5,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Mail, KeyRound } from "lucide-react";
+import { ArrowLeft, Mail, MailCheck } from "lucide-react";
 import { toast } from "sonner";
 
 const UmpireLogin = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
-  const [step, setStep] = useState<"email" | "verify">("email");
+  const [step, setStep] = useState<"email" | "sent">("email");
   const [loading, setLoading] = useState(false);
 
-  const handleSendOtp = async (e: React.FormEvent) => {
+  const handleSendLink = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim() });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      setStep("verify");
-      toast.success("Check your email for the verification code");
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!otp.trim()) return;
-    setLoading(true);
-    const { error } = await supabase.auth.verifyOtp({
+    const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      token: otp.trim(),
-      type: "email",
+      options: {
+        emailRedirectTo: window.location.origin + "/umpire/vote",
+      },
     });
     setLoading(false);
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Signed in successfully");
-      navigate("/umpire/vote");
+      setStep("sent");
+      toast.success("Check your email for the sign-in link");
     }
   };
 
@@ -69,13 +55,13 @@ const UmpireLogin = () => {
             <CardTitle className="text-2xl">Umpire Sign In</CardTitle>
             <CardDescription>
               {step === "email"
-                ? "Enter your email to receive a one-time code"
-                : "Enter the 6-digit code sent to your email"}
+                ? "Enter your email to receive a sign-in link"
+                : "We've sent a sign-in link to your email"}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {step === "email" ? (
-              <form onSubmit={handleSendOtp} className="space-y-4">
+              <form onSubmit={handleSendLink} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email address</Label>
                   <div className="relative">
@@ -92,39 +78,26 @@ const UmpireLogin = () => {
                   </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Sending..." : "Send verification code"}
+                  {loading ? "Sending..." : "Send sign-in link"}
                 </Button>
               </form>
             ) : (
-              <form onSubmit={handleVerifyOtp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="otp">Verification code</Label>
-                  <div className="relative">
-                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="otp"
-                      type="text"
-                      placeholder="123456"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                      className="pl-10 text-center text-lg tracking-widest"
-                      maxLength={6}
-                      required
-                    />
-                  </div>
+              <div className="space-y-4 text-center">
+                <div className="flex justify-center">
+                  <MailCheck className="h-12 w-12 text-primary" />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Verifying..." : "Verify & sign in"}
-                </Button>
+                <p className="text-sm text-muted-foreground">
+                  Click the link in the email sent to <strong>{email}</strong> to sign in.
+                </p>
                 <Button
                   type="button"
                   variant="ghost"
                   className="w-full"
-                  onClick={() => { setStep("email"); setOtp(""); }}
+                  onClick={() => setStep("email")}
                 >
                   Use a different email
                 </Button>
-              </form>
+              </div>
             )}
           </CardContent>
         </Card>
