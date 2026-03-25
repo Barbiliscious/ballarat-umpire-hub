@@ -1,62 +1,80 @@
 
 
-## Plan: Umpire name collection, umpire management, and date validation
+## Plan: Security fixes, account disable/enable, and unified umpire login flow
 
-### 1. First-time umpire name prompt
+### 1. Delete `setup-super-admin` edge function
 
-When an umpire lands on `/umpire/vote` after magic link sign-in, check if their profile has a `full_name`. If not, show a modal/screen asking for their name before they can proceed. Save it to the `profiles` table. On subsequent logins, skip this step.
+The function has hardcoded credentials and no auth check. Since the super admin account already exists, delete `supabase/functions/setup-super-admin/index.ts` entirely.
 
-**Files:** `src/pages/UmpireVote.tsx`
-- Add a state check: fetch profile by `user_id`, if `full_name` is null/empty, show a name entry form
-- On submit, update `profiles.full_name` and proceed to voting
+### 2. Add `is_disabled` column to `profiles`
 
-### 2. Admin umpire list and management
-
-Add a new admin page for managing umpires, accessible from the sidebar.
-
-**New file:** `src/pages/admin/ManageUmpires.tsx`
-- List all profiles with the `umpire` role (join `profiles` with `user_roles`)
-- Show name, email, first/last login
-- Allow admins to edit an umpire's name inline
-- Allow admins to create "email-less" umpire profiles (name only, no auth account) for admin-submitted votes — insert directly into `profiles` table with a generated UUID as `user_id` and no corresponding auth user
-
-**Modified files:**
-- `src/components/AdminLayout.tsx` — add "Umpires" nav item
-- `src/App.tsx` — add `/admin/umpires` route
-
-**Database:** Add an `UPDATE` policy on `profiles` for admins (currently admins can only view, not update other profiles). Migration:
+Database migration to add:
 ```sql
-CREATE POLICY "Admins can update all profiles"
-ON public.profiles FOR UPDATE TO authenticated
-USING (has_admin_access(auth.uid()))
-WITH CHECK (has_admin_access(auth.uid()));
+ALTER TABLE public.profiles ADD COLUMN is_disabled boolean NOT NULL DEFAULT false;
 ```
 
-Also add an admin INSERT policy on profiles so admins can create umpire-only profiles:
+Update the auth context (`src/lib/auth.tsx`) to check `is_disabled` on login — if true, sign out and show an error.
+
+### 3. Block super_admin creation/deletion in the edge function
+
+Update `admin-manage-users/index.ts`:
+- Remove `super_admin` from allowed `create_user` roles entirely (nobody can create super_admin via the app)
+- Remove ability to delete super_admin accounts
+- Add a new `disable_user` action that sets `profiles.is_disabled = true/false`
+- Add a new `enable_user` action
+
+### 4. Update ManageUsers UI
+
+- Remove `super_admin` from the role dropdown entirely
+- Replace delete button with a disable/enable toggle for all non-super-admin users
+- Super admin rows show no actions (cannot be removed or disabled)
+- Show disabled status with a visual indicator (badge or muted row)
+
+### 5. Fix audit_log RLS
+
+Migration to tighten the INSERT policy:
 ```sql
-CREATE POLICY "Admins can insert profiles"
-ON public.profiles FOR INSERT TO authenticated
-WITH CHECK (has_admin_access(auth.uid()));
+DROP POLICY "Authenticated can insert audit log" ON public.audit_log;
+CREATE POLICY "Admins can insert audit log" ON public.audit_log
+  FOR INSERT TO authenticated WITH CHECK (has_admin_access(auth.uid()));
 ```
 
-### 3. Vote date validation
+### 6. Redesign Umpire Login (`UmpireLogin.tsx`)
 
-Prevent umpires from submitting votes before the match date. In the `validate()` function in `UmpireVote.tsx`:
-- If a fixture is selected, fetch its `match_date`
-- If `match_date` exists and is in the future, block submission with error "Votes cannot be submitted before the match date"
-- Load `match_date` when fixtures are fetched (already selecting `*`)
+New multi-step flow:
 
-**File:** `src/pages/UmpireVote.tsx`
-- Update `Fixture` interface to include `match_date`
-- Add date check in `validate()` or `handleSubmit()`
+**Step 1 — Email entry**: Email input + "Continue" button.
+
+**Step 2 — Check if account exists** (call a new edge function `check-umpire-email`):
+- Edge function looks up `auth.users` by email using service role. Returns `{ exists: boolean }`.
+
+**Step 3a — Account exists**: Show password input + "Sign in" button, plus two links: "Forgot password" and "Send me a one-time link instead". Password login uses `signInWithPassword()`. Magic link uses `signInWithOtp()`.
+
+**Step 3b — Account does not exist (signup)**: Show:
+- Full name input (mandatory)
+- Password + Confirm password inputs
+- OR a "Send me a one-time link instead" button
+- "Create account" button calls the `check-umpire-email` edge function with `action: "create"` which creates the user via admin API with umpire role
+
+### 7. New edge function: `check-umpire-email`
+
+Actions:
+- `check`: Takes email, returns `{ exists: boolean }`
+- `create`: Takes email, password, full_name — creates user with `email_confirm: true`, assigns umpire role, creates profile
+
+### 8. Auth context login guard
+
+In `src/lib/auth.tsx`, after session is established, check if `profiles.is_disabled === true`. If so, call `signOut()` and show a toast: "Your account has been disabled. Contact an administrator."
 
 ### Files summary
 
 | File | Change |
 |------|--------|
-| `src/pages/UmpireVote.tsx` | Add name prompt for first-time users; add match date validation |
-| `src/pages/admin/ManageUmpires.tsx` | New page: list umpires, edit names, create email-less umpires |
-| `src/components/AdminLayout.tsx` | Add "Umpires" nav link |
-| `src/App.tsx` | Add `/admin/umpires` route |
-| Migration | Add admin UPDATE and INSERT policies on `profiles` |
+| `supabase/functions/setup-super-admin/` | **Delete** |
+| `supabase/functions/check-umpire-email/index.ts` | **New** — check existence, create umpire accounts |
+| `supabase/functions/admin-manage-users/index.ts` | Remove super_admin creation, add disable/enable actions |
+| `src/pages/UmpireLogin.tsx` | Complete rewrite — multi-step email/password/signup flow |
+| `src/pages/admin/ManageUsers.tsx` | Remove super_admin option, add disable/enable toggle |
+| `src/lib/auth.tsx` | Add `is_disabled` check on login |
+| Migration SQL | Add `is_disabled` to profiles, fix audit_log RLS |
 
