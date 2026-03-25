@@ -71,11 +71,11 @@ const ManageFixtures = () => {
                 </Select></div>
               <div><Label>Home Team</Label>
                 <Select value={homeTeamId} onValueChange={setHomeTeamId}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>{teams.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>{teams.filter((t: any) => !divisionId || t.division_id === divisionId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                 </Select></div>
               <div><Label>Away Team</Label>
                 <Select value={awayTeamId} onValueChange={setAwayTeamId}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>{teams.filter((t) => t.id !== homeTeamId).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>{teams.filter((t: any) => (!divisionId || t.division_id === divisionId) && t.id !== homeTeamId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                 </Select></div>
               <div><Label>Venue</Label><Input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Optional" /></div>
               <Button onClick={handleAdd} className="w-full">Add Fixture</Button>
