@@ -17,6 +17,7 @@ const navItems = [
   { to: "/admin/divisions", icon: Layers, label: "Divisions" },
   { to: "/admin/teams", icon: Trophy, label: "Teams" },
   { to: "/admin/fixtures", icon: MapPin, label: "Fixtures" },
+  { to: "/admin/umpires", icon: UserCheck, label: "Umpires" },
   { to: "/admin/users", icon: Users, label: "Users" },
   { to: "/admin/audit", icon: Settings, label: "Audit Log" },
 ];

@@ -44,6 +44,7 @@ const App = () => (
               <Route path="divisions" element={<ManageDivisions />} />
               <Route path="teams" element={<ManageTeams />} />
               <Route path="fixtures" element={<ManageFixtures />} />
+              <Route path="umpires" element={<ManageUmpires />} />
               <Route path="users" element={<ManageUsers />} />
               <Route path="audit" element={<AuditLog />} />
             </Route>
