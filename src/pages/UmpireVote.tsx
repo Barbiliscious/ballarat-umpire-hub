@@ -8,13 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, CheckCircle2, AlertCircle } from "lucide-react";
+import { LogOut, CheckCircle2, AlertCircle, User } from "lucide-react";
 import { toast } from "sonner";
 
 interface Round { id: string; name: string; round_number: number; }
 interface Division { id: string; name: string; }
 interface Team { id: string; name: string; short_name: string | null; division_id: string | null; }
-interface Fixture { id: string; home_team_id: string; away_team_id: string; venue: string | null; }
+interface Fixture { id: string; home_team_id: string; away_team_id: string; venue: string | null; match_date: string | null; }
 
 interface VoteLine {
   votes: number;
@@ -49,9 +49,50 @@ const UmpireVote = () => {
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
 
+  // Name prompt state
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [needsName, setNeedsName] = useState(false);
+  const [umpireName, setUmpireName] = useState("");
+  const [savingName, setSavingName] = useState(false);
+
   useEffect(() => {
     if (!authLoading && !user) navigate("/umpire/login");
   }, [user, authLoading, navigate]);
+
+  // Check profile for name
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (!data?.full_name) {
+          setNeedsName(true);
+        }
+        setProfileLoading(false);
+      });
+  }, [user]);
+
+  const handleSaveName = async () => {
+    if (!umpireName.trim()) {
+      toast.error("Please enter your name");
+      return;
+    }
+    setSavingName(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ full_name: umpireName.trim() })
+      .eq("user_id", user!.id);
+    setSavingName(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      setNeedsName(false);
+      toast.success("Name saved!");
+    }
+  };
 
   useEffect(() => {
     supabase.from("rounds").select("*").eq("is_active", true).order("round_number").then(({ data }) => {
@@ -107,6 +148,15 @@ const UmpireVote = () => {
     if (!homeTeam || !awayTeam) errs.push("Both home and away teams are required");
     if (homeTeam === awayTeam) errs.push("Home and away teams cannot be the same");
 
+    // Match date validation
+    const fixture = fixtures.find((f) => f.id === selectedFixture);
+    if (fixture?.match_date) {
+      const matchDate = new Date(fixture.match_date);
+      if (matchDate > new Date()) {
+        errs.push("Votes cannot be submitted before the match date");
+      }
+    }
+
     const names = new Set<string>();
     voteLines.forEach((vl) => {
       if (!vl.playerName.trim()) errs.push(`Player name for ${vl.votes}-vote is required`);
@@ -132,10 +182,8 @@ const UmpireVote = () => {
 
     const fixtureId = selectedFixture || null;
 
-    // If no fixture selected, create or use a placeholder approach
     let finalFixtureId = fixtureId;
     if (!finalFixtureId) {
-      // Create a fixture on the fly
       const { data: newFixture, error: fxErr } = await supabase
         .from("fixtures")
         .insert({
@@ -206,8 +254,50 @@ const UmpireVote = () => {
     });
   };
 
-  if (authLoading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  if (authLoading || profileLoading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!user) return null;
+
+  // First-time name prompt
+  if (needsName) {
+    return (
+      <div className="min-h-screen bg-secondary flex flex-col">
+        <header className="border-b bg-primary">
+          <div className="container flex h-14 items-center justify-between">
+            <span className="text-sm font-medium text-primary-foreground">Umpire Portal</span>
+            <Button variant="ghost" size="sm" onClick={signOut} className="text-primary-foreground hover:bg-accent">
+              <LogOut className="mr-1 h-4 w-4" /> Logout
+            </Button>
+          </div>
+        </header>
+        <main className="flex-1 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md animate-fade-in">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <User className="h-6 w-6 text-primary" />
+              </div>
+              <CardTitle>Welcome!</CardTitle>
+              <CardDescription>Please enter your name to continue. This will be remembered for future sessions.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Your Full Name</Label>
+                <Input
+                  value={umpireName}
+                  onChange={(e) => setUmpireName(e.target.value)}
+                  placeholder="Enter your name"
+                  onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
+                  autoFocus
+                />
+              </div>
+              <Button onClick={handleSaveName} disabled={savingName} className="w-full">
+                {savingName ? "Saving..." : "Continue"}
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (
