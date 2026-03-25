@@ -36,7 +36,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check caller has admin access
     const { data: callerRoles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
@@ -44,9 +43,6 @@ Deno.serve(async (req) => {
 
     const isAdmin = callerRoles?.some(
       (r: any) => r.role === "admin" || r.role === "super_admin"
-    );
-    const isSuperAdmin = callerRoles?.some(
-      (r: any) => r.role === "super_admin"
     );
 
     if (!isAdmin) {
@@ -62,16 +58,11 @@ Deno.serve(async (req) => {
     if (action === "create_user") {
       const { email, password, role, full_name } = body;
 
-      // Only super_admin can create super_admin
-      if (role === "super_admin" && !isSuperAdmin) {
+      // Block super_admin creation entirely
+      if (role === "super_admin") {
         return new Response(
-          JSON.stringify({
-            error: "Only super admins can create super admin accounts",
-          }),
-          {
-            status: 403,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          JSON.stringify({ error: "Super admin accounts cannot be created through the app" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
@@ -90,7 +81,6 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Update profile with full_name
       if (full_name) {
         await supabaseAdmin
           .from("profiles")
@@ -98,9 +88,8 @@ Deno.serve(async (req) => {
           .eq("user_id", newUser.user.id);
       }
 
-      // Assign role (the handle_new_user trigger already assigns 'umpire', so replace it)
+      // Replace default umpire role if different
       if (role && role !== "umpire") {
-        // Remove default umpire role
         await supabaseAdmin
           .from("user_roles")
           .delete()
@@ -115,33 +104,24 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true, user_id: newUser.user.id }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     if (action === "delete_user") {
       const { user_id } = body;
 
-      // Cannot delete super_admin unless caller is super_admin
+      // Check if target is super_admin — block deletion
       const { data: targetRoles } = await supabaseAdmin
         .from("user_roles")
         .select("role")
         .eq("user_id", user_id);
 
-      const targetIsSA = targetRoles?.some(
-        (r: any) => r.role === "super_admin"
-      );
-      if (targetIsSA && !isSuperAdmin) {
+      const targetIsSA = targetRoles?.some((r: any) => r.role === "super_admin");
+      if (targetIsSA) {
         return new Response(
-          JSON.stringify({
-            error: "Only super admins can delete super admin accounts",
-          }),
-          {
-            status: 403,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          JSON.stringify({ error: "Super admin accounts cannot be deleted" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
@@ -161,22 +141,55 @@ Deno.serve(async (req) => {
     if (action === "update_role") {
       const { user_id, role } = body;
 
-      // Only super_admin can assign super_admin
-      if (role === "super_admin" && !isSuperAdmin) {
+      // Block assigning super_admin
+      if (role === "super_admin") {
         return new Response(
-          JSON.stringify({
-            error: "Only super admins can assign super admin role",
-          }),
-          {
-            status: 403,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          JSON.stringify({ error: "Super admin role cannot be assigned through the app" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Remove existing roles, add new one
       await supabaseAdmin.from("user_roles").delete().eq("user_id", user_id);
       await supabaseAdmin.from("user_roles").insert({ user_id, role });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "disable_user") {
+      const { user_id } = body;
+
+      // Block disabling super_admin
+      const { data: targetRoles } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user_id);
+
+      if (targetRoles?.some((r: any) => r.role === "super_admin")) {
+        return new Response(
+          JSON.stringify({ error: "Super admin accounts cannot be disabled" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      await supabaseAdmin
+        .from("profiles")
+        .update({ is_disabled: true })
+        .eq("user_id", user_id);
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "enable_user") {
+      const { user_id } = body;
+
+      await supabaseAdmin
+        .from("profiles")
+        .update({ is_disabled: false })
+        .eq("user_id", user_id);
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

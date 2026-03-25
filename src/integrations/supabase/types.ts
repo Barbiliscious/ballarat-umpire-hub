@@ -140,6 +140,7 @@ export type Database = {
           first_login: string | null
           full_name: string | null
           id: string
+          is_disabled: boolean
           last_login: string | null
           role: string
           updated_at: string
@@ -151,6 +152,7 @@ export type Database = {
           first_login?: string | null
           full_name?: string | null
           id?: string
+          is_disabled?: boolean
           last_login?: string | null
           role?: string
           updated_at?: string
@@ -162,6 +164,7 @@ export type Database = {
           first_login?: string | null
           full_name?: string | null
           id?: string
+          is_disabled?: boolean
           last_login?: string | null
           role?: string
           updated_at?: string
