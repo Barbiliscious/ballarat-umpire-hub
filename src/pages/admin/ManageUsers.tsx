@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { UserPlus, Trash2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 const ManageUsers = () => {
@@ -22,6 +23,7 @@ const ManageUsers = () => {
   const [inviteName, setInviteName] = useState("");
   const [inviteRole, setInviteRole] = useState("admin");
   const [inviting, setInviting] = useState(false);
+  const [togglingDisable, setTogglingDisable] = useState<string | null>(null);
 
   const fetchAll = async () => {
     const [p, r] = await Promise.all([
@@ -36,6 +38,9 @@ const ManageUsers = () => {
 
   const getUserRoles = (userId: string) =>
     roles.filter((r) => r.user_id === userId).map((r) => r.role);
+
+  const isSuperAdminUser = (userId: string) =>
+    getUserRoles(userId).includes("super_admin");
 
   const handleInvite = async () => {
     if (!inviteEmail || !invitePassword) {
@@ -66,22 +71,22 @@ const ManageUsers = () => {
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!confirm("Are you sure you want to delete this user?")) return;
+  const handleToggleDisable = async (userId: string, currentlyDisabled: boolean) => {
+    setTogglingDisable(userId);
+    const action = currentlyDisabled ? "enable_user" : "disable_user";
     const { data, error } = await supabase.functions.invoke("admin-manage-users", {
-      body: { action: "delete_user", user_id: userId },
+      body: { action, user_id: userId },
     });
+    setTogglingDisable(null);
     if (error || data?.error) {
-      toast.error(data?.error || error?.message || "Failed to delete user");
+      toast.error(data?.error || error?.message || "Failed to update user");
     } else {
-      toast.success("User deleted");
+      toast.success(currentlyDisabled ? "User enabled" : "User disabled");
       fetchAll();
     }
   };
 
-  const roleOptions = isSuperAdmin
-    ? ["umpire", "admin", "super_admin"]
-    : ["umpire", "admin"];
+  const roleOptions = ["umpire", "admin"];
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -98,46 +103,60 @@ const ManageUsers = () => {
             <TableHead>Email</TableHead>
             <TableHead>Name</TableHead>
             <TableHead>Roles</TableHead>
-            <TableHead>First Login</TableHead>
+            <TableHead>Status</TableHead>
             <TableHead>Last Login</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {profiles.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell className="font-medium">{p.email}</TableCell>
-                <TableCell>{p.full_name || "—"}</TableCell>
-                <TableCell>
-                  {getUserRoles(p.user_id).map((r) => (
-                    <Badge
-                      key={r}
-                      variant={r === "super_admin" ? "default" : r === "admin" ? "default" : "secondary"}
-                      className={`mr-1 ${r === "super_admin" ? "bg-amber-500" : ""}`}
-                    >
-                      {r === "super_admin" ? "Super Admin" : r}
-                    </Badge>
-                  ))}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {p.first_login ? new Date(p.first_login).toLocaleDateString() : "—"}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {p.last_login ? new Date(p.last_login).toLocaleDateString() : "—"}
-                </TableCell>
-                <TableCell className="text-right">
-                  {!getUserRoles(p.user_id).includes("super_admin") && (
-                    <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(p.user_id)} className="text-destructive">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+            {profiles.map((p) => {
+              const isSA = isSuperAdminUser(p.user_id);
+              const isDisabled = p.is_disabled;
+              return (
+                <TableRow key={p.id} className={isDisabled ? "opacity-50" : ""}>
+                  <TableCell className="font-medium">{p.email}</TableCell>
+                  <TableCell>{p.full_name || "—"}</TableCell>
+                  <TableCell>
+                    {getUserRoles(p.user_id).map((r) => (
+                      <Badge
+                        key={r}
+                        variant={r === "super_admin" ? "default" : r === "admin" ? "default" : "secondary"}
+                        className={`mr-1 ${r === "super_admin" ? "bg-amber-500" : ""}`}
+                      >
+                        {r === "super_admin" ? "Super Admin" : r.charAt(0).toUpperCase() + r.slice(1)}
+                      </Badge>
+                    ))}
+                  </TableCell>
+                  <TableCell>
+                    {isDisabled ? (
+                      <Badge variant="destructive">Disabled</Badge>
+                    ) : (
+                      <Badge variant="secondary">Active</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {p.last_login ? new Date(p.last_login).toLocaleDateString() : "—"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {!isSA && (
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {isDisabled ? "Disabled" : "Enabled"}
+                        </span>
+                        <Switch
+                          checked={!isDisabled}
+                          onCheckedChange={() => handleToggleDisable(p.user_id, isDisabled)}
+                          disabled={togglingDisable === p.user_id}
+                        />
+                      </div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </CardContent></Card>
 
-      {/* Invite Dialog */}
       <Dialog open={showInvite} onOpenChange={setShowInvite}>
         <DialogContent>
           <DialogHeader>
@@ -162,7 +181,7 @@ const ManageUsers = () => {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {roleOptions.map((r) => (
-                    <SelectItem key={r} value={r}>{r === "super_admin" ? "Super Admin" : r.charAt(0).toUpperCase() + r.slice(1)}</SelectItem>
+                    <SelectItem key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

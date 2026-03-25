@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import type { User, Session } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -37,6 +38,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsSuperAdmin(roles.includes("super_admin"));
   };
 
+  const checkDisabled = async (userId: string): Promise<boolean> => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("is_disabled")
+      .eq("user_id", userId)
+      .single();
+    if (data?.is_disabled) {
+      toast.error("Your account has been disabled. Contact an administrator.");
+      await supabase.auth.signOut();
+      return true;
+    }
+    return false;
+  };
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
@@ -44,25 +59,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         if (session?.user) {
           setTimeout(async () => {
+            const disabled = await checkDisabled(session.user.id);
+            if (disabled) {
+              setIsLoading(false);
+              return;
+            }
             await supabase
               .from("profiles")
               .update({ last_login: new Date().toISOString() })
               .eq("user_id", session.user.id);
             await checkRoles(session.user.id);
+            setIsLoading(false);
           }, 0);
         } else {
           setIsAdmin(false);
           setIsSuperAdmin(false);
+          setIsLoading(false);
         }
-        setIsLoading(false);
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        checkRoles(session.user.id);
+        const disabled = await checkDisabled(session.user.id);
+        if (!disabled) {
+          await checkRoles(session.user.id);
+        }
       }
       setIsLoading(false);
     });
