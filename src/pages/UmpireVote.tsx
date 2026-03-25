@@ -13,7 +13,7 @@ import { toast } from "sonner";
 
 interface Round { id: string; name: string; round_number: number; }
 interface Division { id: string; name: string; }
-interface Team { id: string; name: string; short_name: string | null; }
+interface Team { id: string; name: string; short_name: string | null; division_id: string | null; }
 interface Fixture { id: string; home_team_id: string; away_team_id: string; venue: string | null; }
 
 interface VoteLine {
