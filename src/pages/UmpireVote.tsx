@@ -13,7 +13,7 @@ import { toast } from "sonner";
 
 interface Round { id: string; name: string; round_number: number; }
 interface Division { id: string; name: string; }
-interface Team { id: string; name: string; short_name: string | null; }
+interface Team { id: string; name: string; short_name: string | null; division_id: string | null; }
 interface Fixture { id: string; home_team_id: string; away_team_id: string; venue: string | null; }
 
 interface VoteLine {
@@ -344,7 +344,7 @@ const UmpireVote = () => {
                     <Select value={homeTeam} onValueChange={setHomeTeam}>
                       <SelectTrigger><SelectValue placeholder="Select home team" /></SelectTrigger>
                       <SelectContent>
-                        {teams.map((t) => (
+                        {teams.filter((t) => t.division_id === selectedDivision).map((t) => (
                           <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                         ))}
                       </SelectContent>
@@ -355,7 +355,7 @@ const UmpireVote = () => {
                     <Select value={awayTeam} onValueChange={setAwayTeam}>
                       <SelectTrigger><SelectValue placeholder="Select away team" /></SelectTrigger>
                       <SelectContent>
-                        {teams.filter((t) => t.id !== homeTeam).map((t) => (
+                        {teams.filter((t) => t.division_id === selectedDivision && t.id !== homeTeam).map((t) => (
                           <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                         ))}
                       </SelectContent>
