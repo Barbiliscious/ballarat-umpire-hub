@@ -1,50 +1,62 @@
 
 
-## Plan: Replace mock data with real Ballarat Hockey divisions and teams
+## Plan: Umpire name collection, umpire management, and date validation
 
-The user has provided real competition data to populate the database. This requires a database migration to clear existing data and insert the correct divisions and teams with proper associations.
+### 1. First-time umpire name prompt
 
-### Data extracted from the image
+When an umpire lands on `/umpire/vote` after magic link sign-in, check if their profile has a `full_name`. If not, show a modal/screen asking for their name before they can proceed. Save it to the `profiles` table. On subsequent logins, skip this step.
 
-**Divisions:**
-1. Division 1 Open
-2. Division 1 Women
-3. Division 2 Open
+**Files:** `src/pages/UmpireVote.tsx`
+- Add a state check: fetch profile by `user_id`, if `full_name` is null/empty, show a name entry form
+- On submit, update `profiles.full_name` and proceed to voting
 
-**Teams (with division assignments):**
+### 2. Admin umpire list and management
 
-| Team Name | Division |
-|-----------|----------|
-| Blaze | Div 1 Open, Div 1 Women, Div 2 Open |
-| Bobcats | Div 1 Open, Div 1 Women, Div 2 Open |
-| Ducks | Div 1 Open, Div 1 Women |
-| EGC | Div 1 Open, Div 1 Women |
-| Lucas | Div 1 Open, Div 1 Women, Div 2 Open |
-| EGC Blue | Div 2 Open |
-| EGC Gold | Div 2 Open |
-| Pumas | Div 2 Open |
+Add a new admin page for managing umpires, accessible from the sidebar.
 
-**Note:** Some teams (Blaze, Bobcats, etc.) appear in multiple divisions. Since the `teams` table has a single `division_id`, we need to either:
-- Create separate team entries per division (e.g. "Blaze" in Div 1 Open and "Blaze" in Div 1 Women are separate rows)
-- Or remove the `division_id` FK from teams and handle the association through fixtures
+**New file:** `src/pages/admin/ManageUmpires.tsx`
+- List all profiles with the `umpire` role (join `profiles` with `user_roles`)
+- Show name, email, first/last login
+- Allow admins to edit an umpire's name inline
+- Allow admins to create "email-less" umpire profiles (name only, no auth account) for admin-submitted votes — insert directly into `profiles` table with a generated UUID as `user_id` and no corresponding auth user
 
-The cleaner approach is **separate team entries per division** since voting and fixtures are division-specific, and team names can differ per division (e.g. "EGC Blue" vs "EGC Gold").
+**Modified files:**
+- `src/components/AdminLayout.tsx` — add "Umpires" nav item
+- `src/App.tsx` — add `/admin/umpires` route
 
-### Changes
+**Database:** Add an `UPDATE` policy on `profiles` for admins (currently admins can only view, not update other profiles). Migration:
+```sql
+CREATE POLICY "Admins can update all profiles"
+ON public.profiles FOR UPDATE TO authenticated
+USING (has_admin_access(auth.uid()))
+WITH CHECK (has_admin_access(auth.uid()));
+```
 
-**1. Database migration:**
-- Delete existing teams and divisions (cascade will handle dependent data)
-- Insert 3 divisions
-- Insert teams linked to their respective divisions:
-  - Div 1 Open: Blaze, Bobcats, Ducks, EGC, Lucas (5 teams)
-  - Div 1 Women: Blaze, Bobcats, Ducks, EGC, Lucas (5 teams)
-  - Div 2 Open: Blaze, Bobcats, EGC Blue, EGC Gold, Pumas, Lucas (6 teams)
+Also add an admin INSERT policy on profiles so admins can create umpire-only profiles:
+```sql
+CREATE POLICY "Admins can insert profiles"
+ON public.profiles FOR INSERT TO authenticated
+WITH CHECK (has_admin_access(auth.uid()));
+```
 
-Total: 16 team rows across 3 divisions.
+### 3. Vote date validation
 
-**2. UI update — ManageFixtures.tsx:**
-- Filter the team dropdowns by the selected division so admins only see relevant teams when creating fixtures.
+Prevent umpires from submitting votes before the match date. In the `validate()` function in `UmpireVote.tsx`:
+- If a fixture is selected, fetch its `match_date`
+- If `match_date` exists and is in the future, block submission with error "Votes cannot be submitted before the match date"
+- Load `match_date` when fixtures are fetched (already selecting `*`)
 
-**3. UI update — UmpireVote.tsx:**
-- Similarly filter teams by selected division in the umpire voting flow.
+**File:** `src/pages/UmpireVote.tsx`
+- Update `Fixture` interface to include `match_date`
+- Add date check in `validate()` or `handleSubmit()`
+
+### Files summary
+
+| File | Change |
+|------|--------|
+| `src/pages/UmpireVote.tsx` | Add name prompt for first-time users; add match date validation |
+| `src/pages/admin/ManageUmpires.tsx` | New page: list umpires, edit names, create email-less umpires |
+| `src/components/AdminLayout.tsx` | Add "Umpires" nav link |
+| `src/App.tsx` | Add `/admin/umpires` route |
+| Migration | Add admin UPDATE and INSERT policies on `profiles` |
 
