@@ -299,7 +299,7 @@ const UmpireLogin = () => {
                       <Input
                         id="signupPassword"
                         type={showSignupPassword ? "text" : "password"}
-                        placeholder="Create a password (min 6 chars)"
+                        placeholder="Create a password (min 8 chars)"
                         value={signupPassword}
                         onChange={(e) => setSignupPassword(e.target.value)}
                         required
