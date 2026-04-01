@@ -237,10 +237,11 @@ const Submissions = () => {
               {filtered.map((s) => {
                 const lines = voteLines.filter((vl) => vl.submission_id === s.id).sort((a, b) => b.votes - a.votes);
                 const isAdminSubmitted = !!s.submitted_by_admin_id;
+                const isProxySubmitted = !!s.proxy_submitter_id && !s.submitted_by_admin_id;
                 return (
                   <TableRow
                     key={s.id}
-                    className={`${s.is_deleted ? "opacity-50 line-through" : ""} ${isAdminSubmitted ? "bg-amber-50 dark:bg-amber-950/20" : ""}`}
+                    className={`${s.is_deleted ? "opacity-50 line-through" : ""} ${isAdminSubmitted ? "bg-amber-50 dark:bg-amber-950/20" : ""} ${isProxySubmitted ? "border-l-4 border-l-purple-500 bg-purple-50/50 dark:bg-purple-950/10" : ""}`}
                   >
                     <TableCell className="font-medium">{getName(rounds, s.round_id)}</TableCell>
                     <TableCell>{getName(divisions, s.division_id)}</TableCell>
