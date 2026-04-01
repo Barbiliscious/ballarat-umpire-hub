@@ -327,9 +327,14 @@ const UmpireVote = () => {
                   </div>
                 ))}
               </div>
-              <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(emptyVotes))); setSelectedFixture(""); }} className="w-full">
-                Submit another vote
-              </Button>
+              <div className="space-y-2">
+                <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(emptyVotes))); setSelectedFixture(""); }} className="w-full">
+                  Submit another vote
+                </Button>
+                <Button variant="outline" onClick={() => navigate("/umpire/history")} className="w-full">
+                  View my submission history
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </main>
