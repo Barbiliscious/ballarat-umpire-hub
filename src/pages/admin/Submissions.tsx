@@ -32,6 +32,9 @@ interface Submission {
   submitted_at: string;
   submitted_by_admin_id: string | null;
   submitted_by_admin_name: string | null;
+  proxy_submitter_id: string | null;
+  proxy_submitter_name: string | null;
+  proxy_reason: string | null;
 }
 
 interface VoteLine {
