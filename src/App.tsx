@@ -22,6 +22,7 @@ import ManageUsers from "./pages/admin/ManageUsers";
 import AuditLog from "./pages/admin/AuditLog";
 import AdminVoteSubmit from "./pages/admin/AdminVoteSubmit";
 import ManageUmpires from "./pages/admin/ManageUmpires";
+import Leaderboard from "./pages/admin/Leaderboard";
 
 const queryClient = new QueryClient();
 
