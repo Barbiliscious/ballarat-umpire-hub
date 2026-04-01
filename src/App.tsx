@@ -43,6 +43,7 @@ const App = () => (
               <Route index element={<Dashboard />} />
               <Route path="submissions" element={<Submissions />} />
               <Route path="submit-vote" element={<AdminVoteSubmit />} />
+              <Route path="leaderboard" element={<Leaderboard />} />
               <Route path="rounds" element={<ManageRounds />} />
               <Route path="divisions" element={<ManageDivisions />} />
               <Route path="teams" element={<ManageTeams />} />

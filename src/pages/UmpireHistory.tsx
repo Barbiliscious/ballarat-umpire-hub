@@ -15,6 +15,8 @@ interface Submission {
   away_team_id: string;
   submitted_at: string;
   is_approved: boolean;
+  proxy_submitter_name: string | null;
+  proxy_reason: string | null;
 }
 
 interface VoteLine {
@@ -43,7 +45,7 @@ const UmpireHistory = () => {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      supabase.from("vote_submissions").select("id, round_id, division_id, home_team_id, away_team_id, submitted_at, is_approved").eq("umpire_id", user.id).eq("is_deleted", false).order("submitted_at", { ascending: false }),
+      supabase.from("vote_submissions").select("id, round_id, division_id, home_team_id, away_team_id, submitted_at, is_approved, proxy_submitter_name, proxy_reason").eq("umpire_id", user.id).eq("is_deleted", false).order("submitted_at", { ascending: false }),
       supabase.from("vote_lines").select("*"),
       supabase.from("rounds").select("id, name"),
       supabase.from("divisions").select("id, name"),
@@ -118,6 +120,11 @@ const UmpireHistory = () => {
                       </div>
                     ))}
                   </div>
+                  {s.proxy_submitter_name && (
+                    <p className="text-sm text-muted-foreground italic mt-3">
+                      Submitted on your behalf by {s.proxy_submitter_name} — Reason: {s.proxy_reason}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             );

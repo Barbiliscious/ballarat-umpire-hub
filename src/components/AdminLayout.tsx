@@ -13,6 +13,7 @@ const navItems = [
   { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
   { to: "/admin/submissions", icon: FileText, label: "Submissions" },
   { to: "/admin/submit-vote", icon: PlusCircle, label: "Submit Vote" },
+  { to: "/admin/leaderboard", icon: Award, label: "Leaderboard" },
   { to: "/admin/rounds", icon: Calendar, label: "Rounds" },
   { to: "/admin/divisions", icon: Layers, label: "Divisions" },
   { to: "/admin/teams", icon: Trophy, label: "Teams" },

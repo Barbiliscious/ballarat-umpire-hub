@@ -253,6 +253,18 @@ const Submissions = () => {
                             Submitted by: {s.submitted_by_admin_name}
                           </div>
                         )}
+                        {isProxySubmitted && (
+                          <>
+                            <div className="text-xs text-purple-600 dark:text-purple-400 font-medium mt-0.5">
+                              Proxy: submitted by {s.proxy_submitter_name}
+                            </div>
+                            {s.proxy_reason && (
+                              <div className="text-xs text-muted-foreground italic mt-0.5">
+                                {s.proxy_reason}
+                              </div>
+                            )}
+                          </>
+                        )}
                         {s.is_deleted && s.deleted_by && (
                           <div className="text-xs text-destructive font-medium mt-0.5">
                             Deleted by: {getUmpire(s.deleted_by)}
