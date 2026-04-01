@@ -1,80 +1,64 @@
 
 
-## Plan: Security fixes, account disable/enable, and unified umpire login flow
+## Plan: Implement Sections 1 and 2
 
-### 1. Delete `setup-super-admin` edge function
+### Section 1 — Security Fixes
 
-The function has hardcoded credentials and no auth check. Since the super admin account already exists, delete `supabase/functions/setup-super-admin/index.ts` entirely.
+**1a. Fix `check-umpire-email` edge function** (`supabase/functions/check-umpire-email/index.ts`)
+- Replace all `listUsers()` calls with `getUserByEmail(email)` for both `check` and `create` actions
+- `check`: use `supabaseAdmin.auth.admin.getUserByEmail(email)` — if error (user not found), return `{ exists: false }`; if found, check profile `is_disabled`
+- `create`: use `getUserByEmail` to check existence before creating
 
-### 2. Add `is_disabled` column to `profiles`
+**1b. Password minimum 8 characters**
+- Edge function: change `password.length < 6` to `< 8`, update error message
+- `UmpireLogin.tsx`: change validation from `< 6` to `< 8`, update `minLength` attributes and placeholder text
 
-Database migration to add:
-```sql
-ALTER TABLE public.profiles ADD COLUMN is_disabled boolean NOT NULL DEFAULT false;
-```
+**1c. Audit log RLS** — migration to drop/recreate the insert policy (already correct in DB, but run idempotent migration to confirm)
 
-Update the auth context (`src/lib/auth.tsx`) to check `is_disabled` on login — if true, sign out and show an error.
+### Section 2 — UX Improvements
 
-### 3. Block super_admin creation/deletion in the edge function
+**2a. Confirmation dialogs in `Submissions.tsx`**
+- Import `AlertDialog` components
+- Wrap Approve button: "Are you sure you want to approve this submission? This cannot be undone." with Confirm/Cancel
+- Wrap Delete button: "Are you sure you want to delete this submission? It will be hidden but can be restored later." with Delete (destructive)/Cancel
 
-Update `admin-manage-users/index.ts`:
-- Remove `super_admin` from allowed `create_user` roles entirely (nobody can create super_admin via the app)
-- Remove ability to delete super_admin accounts
-- Add a new `disable_user` action that sets `profiles.is_disabled = true/false`
-- Add a new `enable_user` action
+**2b. Recent pending submissions on `Dashboard.tsx`**
+- Below stats cards, query `vote_submissions` where `is_deleted=false`, `is_approved=false`, limit 10, ordered by `submitted_at desc`
+- Join with rounds, divisions, profiles for names
+- Each row: round name, division name, umpire name, submitted date, "View" button linking to `/admin/submissions`
+- If none, show green "All submissions are approved" message
 
-### 4. Update ManageUsers UI
+**2c. New `UmpireHistory.tsx` at `/umpire/history`**
+- Requires auth; loads own submissions with round/division/team names and vote lines
+- Status badges: Pending (amber), Approved (green)
+- Shows vote lines per submission
+- Add route to `App.tsx`
+- Add "View my submission history" link on UmpireVote confirmation screen and in the umpire header
 
-- Remove `super_admin` from the role dropdown entirely
-- Replace delete button with a disable/enable toggle for all non-super-admin users
-- Super admin rows show no actions (cannot be removed or disabled)
-- Show disabled status with a visual indicator (badge or muted row)
+**2d. Admin inactivity timeout in `auth.tsx`**
+- For admin users only, 60-minute timeout on mousemove/keydown/click
+- On timeout: `signOut()`, redirect to `/admin/login`, toast "You have been signed out due to inactivity."
+- useEffect with timer reset on activity events
 
-### 5. Fix audit_log RLS
-
-Migration to tighten the INSERT policy:
-```sql
-DROP POLICY "Authenticated can insert audit log" ON public.audit_log;
-CREATE POLICY "Admins can insert audit log" ON public.audit_log
-  FOR INSERT TO authenticated WITH CHECK (has_admin_access(auth.uid()));
-```
-
-### 6. Redesign Umpire Login (`UmpireLogin.tsx`)
-
-New multi-step flow:
-
-**Step 1 — Email entry**: Email input + "Continue" button.
-
-**Step 2 — Check if account exists** (call a new edge function `check-umpire-email`):
-- Edge function looks up `auth.users` by email using service role. Returns `{ exists: boolean }`.
-
-**Step 3a — Account exists**: Show password input + "Sign in" button, plus two links: "Forgot password" and "Send me a one-time link instead". Password login uses `signInWithPassword()`. Magic link uses `signInWithOtp()`.
-
-**Step 3b — Account does not exist (signup)**: Show:
-- Full name input (mandatory)
-- Password + Confirm password inputs
-- OR a "Send me a one-time link instead" button
-- "Create account" button calls the `check-umpire-email` edge function with `action: "create"` which creates the user via admin API with umpire role
-
-### 7. New edge function: `check-umpire-email`
-
-Actions:
-- `check`: Takes email, returns `{ exists: boolean }`
-- `create`: Takes email, password, full_name — creates user with `email_confirm: true`, assigns umpire role, creates profile
-
-### 8. Auth context login guard
-
-In `src/lib/auth.tsx`, after session is established, check if `profiles.is_disabled === true`. If so, call `signOut()` and show a toast: "Your account has been disabled. Contact an administrator."
+**2e. CSV fixture import in `ManageFixtures.tsx`**
+- "Import CSV" button next to "Add Fixture"
+- Dialog with helper text showing expected format: `round_name,division_name,home_team_name,away_team_name,venue`
+- Parse CSV, case-insensitive name lookup for round/division/teams
+- Error list for unmatched rows, insert valid ones
+- Summary toast: "X fixtures imported, Y rows skipped"
 
 ### Files summary
 
 | File | Change |
 |------|--------|
-| `supabase/functions/setup-super-admin/` | **Delete** |
-| `supabase/functions/check-umpire-email/index.ts` | **New** — check existence, create umpire accounts |
-| `supabase/functions/admin-manage-users/index.ts` | Remove super_admin creation, add disable/enable actions |
-| `src/pages/UmpireLogin.tsx` | Complete rewrite — multi-step email/password/signup flow |
-| `src/pages/admin/ManageUsers.tsx` | Remove super_admin option, add disable/enable toggle |
-| `src/lib/auth.tsx` | Add `is_disabled` check on login |
-| Migration SQL | Add `is_disabled` to profiles, fix audit_log RLS |
+| `supabase/functions/check-umpire-email/index.ts` | Replace `listUsers()` with `getUserByEmail()`, 8-char password |
+| `src/pages/UmpireLogin.tsx` | 8-char password minimum |
+| Migration SQL | Idempotent audit_log RLS fix |
+| `src/pages/admin/Submissions.tsx` | AlertDialog confirmations for approve/delete |
+| `src/pages/admin/Dashboard.tsx` | Recent pending submissions section |
+| `src/pages/UmpireHistory.tsx` | **New** — umpire vote history |
+| `src/lib/auth.tsx` | Admin 60-min inactivity timeout |
+| `src/pages/admin/ManageFixtures.tsx` | CSV import dialog |
+| `src/pages/UmpireVote.tsx` | Add "View history" link on confirmation screen |
+| `src/App.tsx` | Add `/umpire/history` route |
 
