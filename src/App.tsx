@@ -10,6 +10,7 @@ import UmpireLogin from "./pages/UmpireLogin";
 import AdminLogin from "./pages/AdminLogin";
 import ResetPassword from "./pages/ResetPassword";
 import UmpireVote from "./pages/UmpireVote";
+import UmpireHistory from "./pages/UmpireHistory";
 import AdminLayout from "./components/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Submissions from "./pages/admin/Submissions";
