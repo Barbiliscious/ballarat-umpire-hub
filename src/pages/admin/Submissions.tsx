@@ -9,6 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Search, Download, Lock, Unlock, CheckCircle, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 
@@ -78,10 +82,8 @@ const Submissions = () => {
   };
 
   const filtered = submissions.filter((s) => {
-    // Filter deleted
     if (!showDeleted && s.is_deleted) return false;
     if (showDeleted && !s.is_deleted) return false;
-
     if (filterRound !== "all" && s.round_id !== filterRound) return false;
     if (filterDivision !== "all" && s.division_id !== filterDivision) return false;
     if (search) {
@@ -284,16 +286,53 @@ const Submissions = () => {
                       ) : (
                         <div className="flex gap-1 justify-end">
                           {!s.is_approved && (
-                            <Button variant="ghost" size="sm" onClick={() => approveSubmission(s)} title="Approve" className="text-success hover:text-success">
-                              <CheckCircle className="h-3.5 w-3.5" />
-                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm" title="Approve" className="text-success hover:text-success">
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Approve Submission</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to approve this submission? This cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => approveSubmission(s)}>Confirm</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           )}
                           <Button variant="ghost" size="sm" onClick={() => toggleLock(s)} title={s.is_locked ? "Reopen" : "Lock"}>
                             {s.is_locked ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => softDelete(s)} title="Delete" className="text-destructive hover:text-destructive">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="sm" title="Delete" className="text-destructive hover:text-destructive">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Submission</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete this submission? It will be hidden but can be restored later.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => softDelete(s)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       )}
                     </TableCell>

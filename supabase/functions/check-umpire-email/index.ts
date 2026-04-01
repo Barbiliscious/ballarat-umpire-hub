@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, email } = body;
 
-    if (!email) {
+    if (!email || typeof email !== "string") {
       return new Response(JSON.stringify({ error: "Email is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -27,29 +27,24 @@ Deno.serve(async (req) => {
     }
 
     if (action === "check") {
-      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-      const exists = existingUsers?.users?.some(
-        (u) => u.email?.toLowerCase() === email.toLowerCase()
-      );
+      const { data, error } = await supabaseAdmin.auth.admin.getUserByEmail(email.trim());
 
-      // Also check if account is disabled
-      let isDisabled = false;
-      if (exists) {
-        const user = existingUsers?.users?.find(
-          (u) => u.email?.toLowerCase() === email.toLowerCase()
+      if (error || !data?.user) {
+        return new Response(
+          JSON.stringify({ exists: false, is_disabled: false }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
-        if (user) {
-          const { data: profile } = await supabaseAdmin
-            .from("profiles")
-            .select("is_disabled")
-            .eq("user_id", user.id)
-            .single();
-          isDisabled = profile?.is_disabled ?? false;
-        }
       }
 
+      // Check if account is disabled
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("is_disabled")
+        .eq("user_id", data.user.id)
+        .single();
+
       return new Response(
-        JSON.stringify({ exists, is_disabled: isDisabled }),
+        JSON.stringify({ exists: true, is_disabled: profile?.is_disabled ?? false }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -64,19 +59,16 @@ Deno.serve(async (req) => {
         });
       }
 
-      if (!password || password.length < 6) {
+      if (!password || password.length < 8) {
         return new Response(
-          JSON.stringify({ error: "Password must be at least 6 characters" }),
+          JSON.stringify({ error: "Password must be at least 8 characters" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       // Check if user already exists
-      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-      const existing = existingUsers?.users?.find(
-        (u) => u.email?.toLowerCase() === email.toLowerCase()
-      );
-      if (existing) {
+      const { data: existingUser } = await supabaseAdmin.auth.admin.getUserByEmail(email.trim());
+      if (existingUser?.user) {
         return new Response(
           JSON.stringify({ error: "An account with this email already exists" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -85,7 +77,7 @@ Deno.serve(async (req) => {
 
       const { data: newUser, error: createErr } =
         await supabaseAdmin.auth.admin.createUser({
-          email,
+          email: email.trim(),
           password,
           email_confirm: true,
           user_metadata: { full_name: full_name.trim() },

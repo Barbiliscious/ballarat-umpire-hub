@@ -10,6 +10,7 @@ import UmpireLogin from "./pages/UmpireLogin";
 import AdminLogin from "./pages/AdminLogin";
 import ResetPassword from "./pages/ResetPassword";
 import UmpireVote from "./pages/UmpireVote";
+import UmpireHistory from "./pages/UmpireHistory";
 import AdminLayout from "./components/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Submissions from "./pages/admin/Submissions";
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/umpire/login" element={<UmpireLogin />} />
             <Route path="/umpire/vote" element={<UmpireVote />} />
+            <Route path="/umpire/history" element={<UmpireHistory />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Dashboard />} />

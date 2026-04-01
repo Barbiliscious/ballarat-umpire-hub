@@ -327,9 +327,14 @@ const UmpireVote = () => {
                   </div>
                 ))}
               </div>
-              <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(emptyVotes))); setSelectedFixture(""); }} className="w-full">
-                Submit another vote
-              </Button>
+              <div className="space-y-2">
+                <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(emptyVotes))); setSelectedFixture(""); }} className="w-full">
+                  Submit another vote
+                </Button>
+                <Button variant="outline" onClick={() => navigate("/umpire/history")} className="w-full">
+                  View my submission history
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </main>
@@ -343,6 +348,9 @@ const UmpireVote = () => {
         <div className="container flex h-14 items-center justify-between">
           <span className="text-sm font-medium text-primary-foreground">Umpire Portal</span>
           <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/umpire/history")} className="text-primary-foreground hover:bg-accent text-xs">
+              History
+            </Button>
             <span className="text-xs text-primary-foreground/70">{user.email}</span>
             <Button variant="ghost" size="sm" onClick={signOut} className="text-primary-foreground hover:bg-accent">
               <LogOut className="mr-1 h-4 w-4" /> Logout

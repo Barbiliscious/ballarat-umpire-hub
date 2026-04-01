@@ -113,8 +113,8 @@ const UmpireLogin = () => {
       toast.error("Please enter your full name");
       return;
     }
-    if (signupPassword.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    if (signupPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
       return;
     }
     if (signupPassword !== confirmPassword) {
@@ -299,11 +299,11 @@ const UmpireLogin = () => {
                       <Input
                         id="signupPassword"
                         type={showSignupPassword ? "text" : "password"}
-                        placeholder="Create a password (min 6 chars)"
+                        placeholder="Create a password (min 8 chars)"
                         value={signupPassword}
                         onChange={(e) => setSignupPassword(e.target.value)}
                         required
-                        minLength={6}
+                        minLength={8}
                       />
                       <Button
                         type="button"
@@ -325,7 +325,7 @@ const UmpireLogin = () => {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
-                      minLength={6}
+                      minLength={8}
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
