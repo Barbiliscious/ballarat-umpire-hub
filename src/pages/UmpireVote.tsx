@@ -348,6 +348,9 @@ const UmpireVote = () => {
         <div className="container flex h-14 items-center justify-between">
           <span className="text-sm font-medium text-primary-foreground">Umpire Portal</span>
           <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/umpire/history")} className="text-primary-foreground hover:bg-accent text-xs">
+              History
+            </Button>
             <span className="text-xs text-primary-foreground/70">{user.email}</span>
             <Button variant="ghost" size="sm" onClick={signOut} className="text-primary-foreground hover:bg-accent">
               <LogOut className="mr-1 h-4 w-4" /> Logout

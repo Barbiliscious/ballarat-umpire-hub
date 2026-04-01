@@ -1,7 +1,9 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { User, Session } from "@supabase/supabase-js";
+
+const ADMIN_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes
 
 interface AuthContextType {
   user: User | null;
@@ -27,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const checkRoles = async (userId: string) => {
     const { data } = await supabase
@@ -51,6 +54,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     return false;
   };
+
+  const handleSignOut = useCallback(async () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    await supabase.auth.signOut();
+  }, []);
+
+  // Admin inactivity timeout
+  useEffect(() => {
+    if (!isAdmin || !user) {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      return;
+    }
+
+    const resetTimer = () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        toast.info("You have been signed out due to inactivity.");
+        handleSignOut().then(() => {
+          window.location.href = "/admin/login";
+        });
+      }, ADMIN_TIMEOUT_MS);
+    };
+
+    const events = ["mousemove", "keydown", "click"] as const;
+    events.forEach((evt) => window.addEventListener(evt, resetTimer));
+    resetTimer();
+
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, resetTimer));
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [isAdmin, user, handleSignOut]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -94,12 +129,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-  };
-
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, isLoading, signOut }}>
+    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, isLoading, signOut: handleSignOut }}>
       {children}
     </AuthContext.Provider>
   );

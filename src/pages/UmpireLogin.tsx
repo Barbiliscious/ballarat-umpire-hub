@@ -325,7 +325,7 @@ const UmpireLogin = () => {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
-                      minLength={6}
+                      minLength={8}
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
