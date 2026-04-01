@@ -303,7 +303,7 @@ const UmpireLogin = () => {
                         value={signupPassword}
                         onChange={(e) => setSignupPassword(e.target.value)}
                         required
-                        minLength={6}
+                        minLength={8}
                       />
                       <Button
                         type="button"
