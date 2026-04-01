@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { LayoutDashboard, FileText, Settings, Users, LogOut, Trophy, MapPin, Calendar, Layers, PlusCircle, KeyRound, UserCheck } from "lucide-react";
+import { LayoutDashboard, FileText, Settings, Users, LogOut, Trophy, MapPin, Calendar, Layers, PlusCircle, KeyRound, UserCheck, Award } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ const navItems = [
   { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
   { to: "/admin/submissions", icon: FileText, label: "Submissions" },
   { to: "/admin/submit-vote", icon: PlusCircle, label: "Submit Vote" },
+  { to: "/admin/leaderboard", icon: Award, label: "Leaderboard" },
   { to: "/admin/rounds", icon: Calendar, label: "Rounds" },
   { to: "/admin/divisions", icon: Layers, label: "Divisions" },
   { to: "/admin/teams", icon: Trophy, label: "Teams" },

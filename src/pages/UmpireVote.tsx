@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { LogOut, CheckCircle2, AlertCircle, User } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,6 +17,7 @@ interface Round { id: string; name: string; round_number: number; }
 interface Division { id: string; name: string; }
 interface Team { id: string; name: string; short_name: string | null; division_id: string | null; }
 interface Fixture { id: string; home_team_id: string; away_team_id: string; venue: string | null; match_date: string | null; }
+interface UmpireProfile { user_id: string; full_name: string | null; email: string; }
 
 interface VoteLine {
   votes: number;
@@ -54,12 +57,20 @@ const UmpireVote = () => {
   const [needsName, setNeedsName] = useState(false);
   const [umpireName, setUmpireName] = useState("");
   const [savingName, setSavingName] = useState(false);
+  const [myFullName, setMyFullName] = useState("");
+
+  // Proxy state
+  const [isProxy, setIsProxy] = useState(false);
+  const [proxyUmpireId, setProxyUmpireId] = useState("");
+  const [proxyReason, setProxyReason] = useState("");
+  const [umpireProfiles, setUmpireProfiles] = useState<UmpireProfile[]>([]);
+  const [selectedProxyName, setSelectedProxyName] = useState("");
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/umpire/login");
   }, [user, authLoading, navigate]);
 
-  // Check profile for name
+  // Check profile for name & load own name
   useEffect(() => {
     if (!user) return;
     supabase
@@ -70,10 +81,24 @@ const UmpireVote = () => {
       .then(({ data }) => {
         if (!data?.full_name) {
           setNeedsName(true);
+        } else {
+          setMyFullName(data.full_name);
         }
         setProfileLoading(false);
       });
   }, [user]);
+
+  // Load umpire profiles for proxy dropdown
+  useEffect(() => {
+    if (!user || !isProxy) return;
+    supabase
+      .from("profiles")
+      .select("user_id, full_name, email")
+      .neq("user_id", user.id)
+      .then(({ data }) => {
+        if (data) setUmpireProfiles(data);
+      });
+  }, [user, isProxy]);
 
   const handleSaveName = async () => {
     if (!umpireName.trim()) {
@@ -90,6 +115,7 @@ const UmpireVote = () => {
       toast.error(error.message);
     } else {
       setNeedsName(false);
+      setMyFullName(umpireName.trim());
       toast.success("Name saved!");
     }
   };
@@ -157,6 +183,12 @@ const UmpireVote = () => {
       }
     }
 
+    // Proxy validation
+    if (isProxy) {
+      if (!proxyUmpireId) errs.push("You must select the umpire you are submitting for");
+      if (!proxyReason.trim()) errs.push("A reason is required when submitting on behalf of another umpire");
+    }
+
     const names = new Set<string>();
     voteLines.forEach((vl) => {
       if (!vl.playerName.trim()) errs.push(`Player name for ${vl.votes}-vote is required`);
@@ -202,22 +234,30 @@ const UmpireVote = () => {
       finalFixtureId = newFixture.id;
     }
 
+    const submissionData: any = {
+      fixture_id: finalFixtureId,
+      umpire_id: isProxy ? proxyUmpireId : user!.id,
+      round_id: selectedRound,
+      division_id: selectedDivision,
+      home_team_id: homeTeam,
+      away_team_id: awayTeam,
+    };
+
+    if (isProxy) {
+      submissionData.proxy_submitter_id = user!.id;
+      submissionData.proxy_submitter_name = myFullName || user!.email;
+      submissionData.proxy_reason = proxyReason.trim();
+    }
+
     const { data: submission, error: subErr } = await supabase
       .from("vote_submissions")
-      .insert({
-        fixture_id: finalFixtureId,
-        umpire_id: user!.id,
-        round_id: selectedRound,
-        division_id: selectedDivision,
-        home_team_id: homeTeam,
-        away_team_id: awayTeam,
-      })
+      .insert(submissionData)
       .select("id")
       .single();
 
     if (subErr) {
       if (subErr.message.includes("duplicate")) {
-        toast.error("You have already submitted votes for this match");
+        toast.error("Votes have already been submitted for this match");
       } else {
         toast.error(subErr.message);
       }
@@ -315,6 +355,12 @@ const UmpireVote = () => {
             <CardContent className="pt-8 pb-8 space-y-4">
               <CheckCircle2 className="h-16 w-16 mx-auto text-success" />
               <h2 className="text-2xl font-bold">Votes Submitted</h2>
+              {isProxy && (
+                <div className="text-sm text-muted-foreground">
+                  <p className="font-medium">Vote submitted on behalf of {selectedProxyName}</p>
+                  <p className="italic mt-1">{proxyReason}</p>
+                </div>
+              )}
               <div className="space-y-2 text-left bg-secondary p-4 rounded-lg">
                 {voteLines.map((vl) => (
                   <div key={vl.votes} className={`flex items-center gap-3 p-2 rounded ${vl.votes === 3 ? 'vote-badge-3' : vl.votes === 2 ? 'vote-badge-2' : 'vote-badge-1'}`}>
@@ -328,7 +374,7 @@ const UmpireVote = () => {
                 ))}
               </div>
               <div className="space-y-2">
-                <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(emptyVotes))); setSelectedFixture(""); }} className="w-full">
+                <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(emptyVotes))); setSelectedFixture(""); setIsProxy(false); setProxyUmpireId(""); setProxyReason(""); }} className="w-full">
                   Submit another vote
                 </Button>
                 <Button variant="outline" onClick={() => navigate("/umpire/history")} className="w-full">
@@ -395,6 +441,62 @@ const UmpireVote = () => {
               <CardDescription>Select the round, division, and fixture</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Proxy toggle */}
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/50">
+                <Checkbox
+                  id="proxy-toggle"
+                  checked={isProxy}
+                  onCheckedChange={(checked) => {
+                    setIsProxy(!!checked);
+                    if (!checked) {
+                      setProxyUmpireId("");
+                      setProxyReason("");
+                    }
+                  }}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="proxy-toggle" className="text-sm font-medium cursor-pointer">
+                    I am submitting this vote on behalf of another umpire
+                  </Label>
+                  {isProxy && (
+                    <p className="text-xs text-muted-foreground">
+                      The vote will be recorded under the selected umpire's name
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {isProxy && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Select umpire you are submitting for</Label>
+                    <Select value={proxyUmpireId} onValueChange={(v) => {
+                      setProxyUmpireId(v);
+                      const profile = umpireProfiles.find((p) => p.user_id === v);
+                      setSelectedProxyName(profile?.full_name || profile?.email || "");
+                    }}>
+                      <SelectTrigger><SelectValue placeholder="Select umpire" /></SelectTrigger>
+                      <SelectContent>
+                        {umpireProfiles.map((p) => (
+                          <SelectItem key={p.user_id} value={p.user_id}>
+                            {p.full_name || p.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Reason for submitting on behalf *</Label>
+                    <Textarea
+                      value={proxyReason}
+                      onChange={(e) => setProxyReason(e.target.value)}
+                      placeholder="e.g. Umpire is travelling and asked me to submit"
+                      rows={2}
+                    />
+                  </div>
+                </>
+              )}
+
               <div className="space-y-2">
                 <Label>Round</Label>
                 <Select value={selectedRound} onValueChange={setSelectedRound}>
@@ -546,6 +648,14 @@ const UmpireVote = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {isProxy && (
+                <div className="p-3 rounded-lg border border-purple-300 bg-purple-50 dark:bg-purple-950/20 dark:border-purple-800">
+                  <p className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                    Submitting on behalf of: {selectedProxyName}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1 italic">{proxyReason}</p>
+                </div>
+              )}
               <div className="space-y-2">
                 {voteLines.map((vl) => (
                   <div key={vl.votes} className={`flex items-center gap-3 p-3 rounded-lg ${vl.votes === 3 ? "vote-badge-3" : vl.votes === 2 ? "vote-badge-2" : "vote-badge-1"}`}>

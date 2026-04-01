@@ -30,21 +30,31 @@ const AuditLog = () => {
             {logs.length === 0 && (
               <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No audit entries yet</TableCell></TableRow>
             )}
-            {logs.map((log) => (
-              <TableRow key={log.id}>
-                <TableCell className="text-sm">{new Date(log.changed_at).toLocaleString()}</TableCell>
-                <TableCell className="font-medium">{log.table_name}</TableCell>
-                <TableCell>
-                  <Badge variant={log.action === "DELETE" ? "destructive" : log.action === "INSERT" ? "default" : "secondary"}>
-                    {log.action}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground font-mono">{log.record_id?.slice(0, 8)}</TableCell>
-                <TableCell className="text-xs max-w-xs truncate">
-                  {log.new_data ? JSON.stringify(log.new_data).slice(0, 80) : "—"}
-                </TableCell>
-              </TableRow>
-            ))}
+            {logs.map((log) => {
+              const proxyName = log.table_name === "vote_submissions" && log.action === "INSERT" && log.new_data?.proxy_submitter_name;
+              return (
+                <TableRow key={log.id}>
+                  <TableCell className="text-sm">{new Date(log.changed_at).toLocaleString()}</TableCell>
+                  <TableCell className="font-medium">{log.table_name}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-1 flex-wrap">
+                      <Badge variant={log.action === "DELETE" ? "destructive" : log.action === "INSERT" ? "default" : "secondary"}>
+                        {log.action}
+                      </Badge>
+                      {proxyName && (
+                        <Badge variant="outline" className="border-purple-400 text-purple-600 dark:text-purple-400">
+                          Proxy by {proxyName}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground font-mono">{log.record_id?.slice(0, 8)}</TableCell>
+                  <TableCell className="text-xs max-w-xs truncate">
+                    {log.new_data ? JSON.stringify(log.new_data).slice(0, 80) : "—"}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </CardContent></Card>

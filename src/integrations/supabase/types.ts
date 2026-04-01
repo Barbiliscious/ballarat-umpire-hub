@@ -309,6 +309,9 @@ export type Database = {
           is_approved: boolean
           is_deleted: boolean
           is_locked: boolean
+          proxy_reason: string | null
+          proxy_submitter_id: string | null
+          proxy_submitter_name: string | null
           round_id: string
           submitted_at: string
           submitted_by_admin_id: string | null
@@ -327,6 +330,9 @@ export type Database = {
           is_approved?: boolean
           is_deleted?: boolean
           is_locked?: boolean
+          proxy_reason?: string | null
+          proxy_submitter_id?: string | null
+          proxy_submitter_name?: string | null
           round_id: string
           submitted_at?: string
           submitted_by_admin_id?: string | null
@@ -345,6 +351,9 @@ export type Database = {
           is_approved?: boolean
           is_deleted?: boolean
           is_locked?: boolean
+          proxy_reason?: string | null
+          proxy_submitter_id?: string | null
+          proxy_submitter_name?: string | null
           round_id?: string
           submitted_at?: string
           submitted_by_admin_id?: string | null
