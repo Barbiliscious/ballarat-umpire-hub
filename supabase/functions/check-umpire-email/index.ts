@@ -27,24 +27,22 @@ Deno.serve(async (req) => {
     }
 
     if (action === "check") {
-      const { data, error } = await supabaseAdmin.auth.admin.getUserByEmail(email.trim());
+      // Look up user via profiles table (avoids listing all auth users)
+      const { data: profile, error } = await supabaseAdmin
+        .from("profiles")
+        .select("user_id, is_disabled")
+        .eq("email", email.trim().toLowerCase())
+        .maybeSingle();
 
-      if (error || !data?.user) {
+      if (error || !profile) {
         return new Response(
           JSON.stringify({ exists: false, is_disabled: false }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Check if account is disabled
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("is_disabled")
-        .eq("user_id", data.user.id)
-        .single();
-
       return new Response(
-        JSON.stringify({ exists: true, is_disabled: profile?.is_disabled ?? false }),
+        JSON.stringify({ exists: true, is_disabled: profile.is_disabled ?? false }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -66,9 +64,14 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Check if user already exists
-      const { data: existingUser } = await supabaseAdmin.auth.admin.getUserByEmail(email.trim());
-      if (existingUser?.user) {
+      // Check if user already exists via profiles table
+      const { data: existingProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("user_id")
+        .eq("email", email.trim().toLowerCase())
+        .maybeSingle();
+
+      if (existingProfile) {
         return new Response(
           JSON.stringify({ error: "An account with this email already exists" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
