@@ -11,7 +11,7 @@ const Index = () => {
       <header className="border-b bg-primary">
         <div className="container flex h-16 items-center justify-center">
           <h1 className="text-xl font-bold text-primary-foreground tracking-wide uppercase">
-            Ballarat Hockey Association
+            HB Umpire Portal
           </h1>
         </div>
       </header>
@@ -58,7 +58,7 @@ const Index = () => {
 
       {/* Footer */}
       <footer className="border-t py-4 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} Ballarat Hockey Association
+        © {new Date().getFullYear()} HB Umpire Portal
       </footer>
     </div>
   );
