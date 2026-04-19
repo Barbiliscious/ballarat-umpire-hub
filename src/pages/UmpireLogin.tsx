@@ -164,7 +164,7 @@ const UmpireLogin = () => {
   return (
     <div className="min-h-screen bg-secondary flex flex-col">
       <header className="border-b bg-primary">
-        <div className="container flex h-14 items-center">
+        <div className="container flex h-14 items-center relative">
           <Button
             variant="ghost"
             size="sm"
@@ -174,6 +174,7 @@ const UmpireLogin = () => {
             <ArrowLeft className="mr-1 h-4 w-4" />
             Back
           </Button>
+          <span className="absolute left-1/2 -translate-x-1/2 text-primary-foreground font-bold tracking-wide uppercase text-sm">Umpire Portal</span>
         </div>
       </header>
 
@@ -181,8 +182,9 @@ const UmpireLogin = () => {
         <Card className="w-full max-w-sm animate-fade-in">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Umpire Sign In</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">After each match, use this to record who played the best — 3 points, 2 points, 1 point.</p>
             <CardDescription>
-              {step === "email" && "Enter your email to get started"}
+              {step === "email" && "Enter your email address — we'll send you a sign-in link or you can use your password"}
               {step === "login" && "Enter your password to sign in"}
               {step === "signup" && "Create your umpire account"}
               {step === "magic-sent" && "We've sent a sign-in link to your email"}
