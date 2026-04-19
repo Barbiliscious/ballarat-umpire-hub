@@ -11,7 +11,7 @@ const Index = () => {
       <header className="border-b bg-primary">
         <div className="container flex h-16 items-center justify-center">
           <h1 className="text-xl font-bold text-primary-foreground tracking-wide uppercase">
-            HB Umpire Portal
+            Umpire Portal
           </h1>
         </div>
       </header>
@@ -21,10 +21,10 @@ const Index = () => {
         <div className="max-w-3xl w-full text-center space-y-10">
           <div className="space-y-3">
             <h2 className="text-4xl font-bold text-foreground md:text-5xl">
-              Umpire Voting Portal
+              Ballarat Hockey Association
             </h2>
             <p className="text-lg text-muted-foreground max-w-md mx-auto">
-              Submit your 3-2-1 best player votes after each match
+              Umpires — submit your best player votes after each match
             </p>
           </div>
 
@@ -36,8 +36,8 @@ const Index = () => {
             >
               <Users className="h-10 w-10" />
               <div className="space-y-1">
-                <span className="text-lg font-semibold">I am an Umpire</span>
-                <p className="text-sm opacity-80">Sign in to submit votes</p>
+                <span className="text-lg font-semibold">Umpire Login</span>
+                <p className="text-sm opacity-80">Submit your 3-2-1 best player votes</p>
               </div>
             </button>
 
@@ -49,17 +49,13 @@ const Index = () => {
               <Shield className="h-10 w-10 text-primary" />
               <div className="space-y-1">
                 <span className="text-lg font-semibold">Admin Portal</span>
-                <p className="text-sm text-muted-foreground">Manage votes & data</p>
+                <p className="text-sm text-muted-foreground">Manage rounds, fixtures and results</p>
               </div>
             </button>
           </div>
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t py-4 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} HB Umpire Portal
-      </footer>
     </div>
   );
 };
