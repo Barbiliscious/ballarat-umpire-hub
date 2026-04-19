@@ -82,7 +82,7 @@ const UmpireLogin = () => {
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: window.location.origin + "/umpire/login",
+        emailRedirectTo: window.location.origin + "/umpire/vote",
       },
     });
     setLoading(false);
