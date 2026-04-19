@@ -19,40 +19,21 @@ const AdminLogin = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({
+    
+    const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
+    
+    setLoading(false);
+
     if (error) {
       toast.error(error.message);
-      setLoading(false);
-      return;
-    }
-    const { data: roleData } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", data.user.id)
-      .eq("role", "admin")
-      .maybeSingle();
-
-    // Also check super_admin
-    const { data: saData } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", data.user.id)
-      .eq("role", "super_admin")
-      .maybeSingle();
-
-    if (!roleData && !saData) {
-      toast.error("You do not have admin access");
-      await supabase.auth.signOut();
-      setLoading(false);
       return;
     }
 
     toast.success("Welcome, Admin");
     navigate("/admin");
-    setLoading(false);
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
