@@ -221,6 +221,24 @@ const UmpireLogin = () => {
                 <p className="text-sm text-muted-foreground text-center">
                   Signing in as <strong>{email}</strong>
                 </p>
+                
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  className="w-full"
+                  onClick={handleSendMagicLink}
+                  disabled={loading}
+                >
+                  Send me a one-time link instead
+                </Button>
+
+                <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                  <div className="flex-1 border-t" />
+                  <span>or use your password</span>
+                  <div className="flex-1 border-t" />
+                </div>
+
                 <form onSubmit={handlePasswordLogin} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="password">Password</Label>
@@ -248,30 +266,16 @@ const UmpireLogin = () => {
                     {loading ? "Signing in..." : "Sign in"}
                   </Button>
                 </form>
-                <div className="flex flex-col gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="w-full"
-                    onClick={handleForgotPassword}
-                    disabled={loading}
-                  >
-                    Forgot password?
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={handleSendMagicLink}
-                    disabled={loading}
-                  >
-                    Send me a one-time link instead
-                  </Button>
-                </div>
-                <Button type="button" variant="link" size="sm" className="w-full" onClick={resetToEmail}>
-                  Use a different email
+                
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={handleForgotPassword}
+                  disabled={loading}
+                >
+                  Forgot password?
                 </Button>
               </div>
             )}
