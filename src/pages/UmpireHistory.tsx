@@ -70,7 +70,7 @@ const UmpireHistory = () => {
       <header className="border-b bg-primary">
         <div className="container flex h-14 items-center justify-between">
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/umpire/vote")} className="text-primary-foreground hover:bg-accent">
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-primary-foreground hover:bg-accent">
               <ArrowLeft className="mr-1 h-4 w-4" /> Back to Vote
             </Button>
           </div>

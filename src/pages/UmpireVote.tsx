@@ -474,24 +474,14 @@ const UmpireVote = () => {
                   <div className="space-y-2">
                     <Label>Select umpire you are submitting for</Label>
                     <Input 
-                      list="umpire-suggestions" 
-                      placeholder="Type or select umpire name"
-                      value={selectedProxyName}
+                      type="text"
+                      placeholder="Type umpire's name"
+                      value={proxyUmpireId}
                       onChange={(e) => {
+                        setProxyUmpireId(e.target.value);
                         setSelectedProxyName(e.target.value);
-                        const profile = umpireProfiles.find((p) => (p.full_name || p.email) === e.target.value);
-                        if (profile) {
-                          setProxyUmpireId(profile.user_id);
-                        } else {
-                          setProxyUmpireId("");
-                        }
                       }}
                     />
-                    <datalist id="umpire-suggestions">
-                      {umpireProfiles.map((p) => (
-                        <option key={p.user_id} value={p.full_name || p.email || ""} />
-                      ))}
-                    </datalist>
                   </div>
                   <div className="space-y-2">
                     <Label>Reason for submitting on behalf *</Label>
@@ -610,21 +600,26 @@ const UmpireVote = () => {
                         placeholder="Player name"
                         value={vl.playerName}
                         onChange={(e) => updateVoteLine(idx, "playerName", e.target.value)}
+                        required
                       />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Number</Label>
                       <Input
+                        type="number"
+                        min="0"
+                        max="99"
                         placeholder="#"
                         value={vl.playerNumber}
                         onChange={(e) => updateVoteLine(idx, "playerNumber", e.target.value)}
                         inputMode="numeric"
+                        required
                       />
                     </div>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Team</Label>
-                    <Select value={vl.teamId} onValueChange={(v) => updateVoteLine(idx, "teamId", v)}>
+                    <Select value={vl.teamId} onValueChange={(v) => updateVoteLine(idx, "teamId", v)} required>
                       <SelectTrigger><SelectValue placeholder="Select team" /></SelectTrigger>
                       <SelectContent>
                         {matchTeams().map((t) => (
@@ -638,7 +633,15 @@ const UmpireVote = () => {
 
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => setStep(1)} className="flex-1">Back</Button>
-                <Button onClick={() => { setErrors([]); setStep(3); }} className="flex-1">
+                <Button onClick={() => {
+                  const hasEmpty = voteLines.some(vl => !vl.playerName.trim() || !vl.playerNumber.trim() || !vl.teamId);
+                  if (hasEmpty) {
+                    toast.error("Please fill in all player details before continuing.");
+                    return;
+                  }
+                  setErrors([]); 
+                  setStep(3); 
+                }} className="flex-1">
                   Next: Review
                 </Button>
               </div>
