@@ -94,6 +94,7 @@ const UmpireVote = () => {
     supabase
       .from("profiles")
       .select("user_id, full_name, email")
+      .eq("role", "umpire")
       .neq("user_id", user.id)
       .then(({ data }) => {
         if (data) setUmpireProfiles(data);
@@ -407,20 +408,22 @@ const UmpireVote = () => {
 
       <main className="flex-1 container max-w-lg py-8 space-y-6">
         {/* Steps indicator */}
-        <div className="flex items-center justify-center gap-2">
-          {[1, 2, 3].map((s) => (
-            <div key={s} className="flex items-center gap-2">
-              <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold ${step >= s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                {s}
+        <div className="flex flex-col items-center space-y-2">
+          <div className="flex items-center justify-center gap-2">
+            {[1, 2, 3].map((s) => (
+              <div key={s} className="flex items-center gap-2">
+                <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold ${step >= s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                  {s}
+                </div>
+                {s < 3 && <div className={`w-12 h-0.5 ${step > s ? "bg-primary" : "bg-muted"}`} />}
               </div>
-              {s < 3 && <div className={`w-12 h-0.5 ${step > s ? "bg-primary" : "bg-muted"}`} />}
-            </div>
-          ))}
-        </div>
-        <div className="text-center text-sm text-muted-foreground">
-          {step === 1 && "Match Info"}
-          {step === 2 && "Player Votes"}
-          {step === 3 && "Confirm & Submit"}
+            ))}
+          </div>
+          <div className="flex items-center justify-between w-full max-w-[220px] text-xs font-medium text-muted-foreground px-1">
+            <span className={step >= 1 ? "text-primary" : ""}>Match Info</span>
+            <span className={step >= 2 ? "text-primary text-center" : "text-center"}>Vote</span>
+            <span className={step >= 3 ? "text-primary text-right" : "text-right"}>Confirm</span>
+          </div>
         </div>
 
         {errors.length > 0 && (
@@ -470,20 +473,25 @@ const UmpireVote = () => {
                 <>
                   <div className="space-y-2">
                     <Label>Select umpire you are submitting for</Label>
-                    <Select value={proxyUmpireId} onValueChange={(v) => {
-                      setProxyUmpireId(v);
-                      const profile = umpireProfiles.find((p) => p.user_id === v);
-                      setSelectedProxyName(profile?.full_name || profile?.email || "");
-                    }}>
-                      <SelectTrigger><SelectValue placeholder="Select umpire" /></SelectTrigger>
-                      <SelectContent>
-                        {umpireProfiles.map((p) => (
-                          <SelectItem key={p.user_id} value={p.user_id}>
-                            {p.full_name || p.email}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Input 
+                      list="umpire-suggestions" 
+                      placeholder="Type or select umpire name"
+                      value={selectedProxyName}
+                      onChange={(e) => {
+                        setSelectedProxyName(e.target.value);
+                        const profile = umpireProfiles.find((p) => (p.full_name || p.email) === e.target.value);
+                        if (profile) {
+                          setProxyUmpireId(profile.user_id);
+                        } else {
+                          setProxyUmpireId("");
+                        }
+                      }}
+                    />
+                    <datalist id="umpire-suggestions">
+                      {umpireProfiles.map((p) => (
+                        <option key={p.user_id} value={p.full_name || p.email || ""} />
+                      ))}
+                    </datalist>
                   </div>
                   <div className="space-y-2">
                     <Label>Reason for submitting on behalf *</Label>

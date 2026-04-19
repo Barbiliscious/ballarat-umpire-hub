@@ -37,7 +37,7 @@ const Index = () => {
               <Users className="h-10 w-10" />
               <div className="space-y-1">
                 <span className="text-lg font-semibold">Umpire Login</span>
-                <p className="text-sm opacity-80">Submit your 3-2-1 best player votes</p>
+                <p className="text-sm opacity-80">Submit best player votes after each match</p>
               </div>
             </button>
 

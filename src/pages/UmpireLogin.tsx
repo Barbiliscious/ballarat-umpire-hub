@@ -182,10 +182,10 @@ const UmpireLogin = () => {
         <Card className="w-full max-w-sm animate-fade-in">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Umpire Sign In</CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">After each match, use this to record who played the best — 3 points, 2 points, 1 point.</p>
+            <p className="text-xs text-muted-foreground mt-1">After each match, use this to record the best players in your game.</p>
             <CardDescription>
               {step === "email" && "Enter your email address — we'll send you a sign-in link or you can use your password"}
-              {step === "login" && "Enter your password to sign in"}
+              {step === "login" && null}
               {step === "signup" && "Create your umpire account"}
               {step === "magic-sent" && "We've sent a sign-in link to your email"}
             </CardDescription>
@@ -225,12 +225,12 @@ const UmpireLogin = () => {
                 <Button
                   type="button"
                   variant="default"
-                  size="sm"
-                  className="w-full"
+                  size="lg"
+                  className="w-full text-base font-semibold py-6"
                   onClick={handleSendMagicLink}
                   disabled={loading}
                 >
-                  Send me a one-time link instead
+                  Send me a one-time link
                 </Button>
 
                 <div className="flex items-center gap-2 text-muted-foreground text-xs">
