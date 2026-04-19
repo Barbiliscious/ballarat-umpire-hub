@@ -12,21 +12,29 @@ import { toast } from "sonner";
 
 interface VoteLine {
   votes: number;
+  label: string;
   playerName: string;
   playerNumber: string;
   teamId: string;
 }
 
-const emptyVotes: VoteLine[] = [
-  { votes: 3, playerName: "", playerNumber: "", teamId: "" },
-  { votes: 2, playerName: "", playerNumber: "", teamId: "" },
-  { votes: 1, playerName: "", playerNumber: "", teamId: "" },
+const seniorVotes: VoteLine[] = [
+  { votes: 3, label: "Best on Ground", playerName: "", playerNumber: "", teamId: "" },
+  { votes: 2, label: "Second Best", playerName: "", playerNumber: "", teamId: "" },
+  { votes: 1, label: "Third Best", playerName: "", playerNumber: "", teamId: "" },
+];
+
+const juniorVotes: VoteLine[] = [
+  { votes: 2, label: "Best Male", playerName: "", playerNumber: "", teamId: "" },
+  { votes: 1, label: "2nd Male", playerName: "", playerNumber: "", teamId: "" },
+  { votes: 2, label: "Best Female", playerName: "", playerNumber: "", teamId: "" },
+  { votes: 1, label: "2nd Female", playerName: "", playerNumber: "", teamId: "" },
 ];
 
 const AdminVoteSubmit = () => {
   const { user } = useAuth();
   const [rounds, setRounds] = useState<{ id: string; name: string }[]>([]);
-  const [divisions, setDivisions] = useState<{ id: string; name: string }[]>([]);
+  const [divisions, setDivisions] = useState<{ id: string; name: string; division_type?: string }[]>([]);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
   const [fixtures, setFixtures] = useState<{ id: string; home_team_id: string; away_team_id: string }[]>([]);
   const [umpires, setUmpires] = useState<{ user_id: string; email: string; full_name: string | null }[]>([]);
@@ -38,7 +46,7 @@ const AdminVoteSubmit = () => {
   const [manualMode, setManualMode] = useState(false);
   const [homeTeam, setHomeTeam] = useState("");
   const [awayTeam, setAwayTeam] = useState("");
-  const [voteLines, setVoteLines] = useState<VoteLine[]>(JSON.parse(JSON.stringify(emptyVotes)));
+  const [voteLines, setVoteLines] = useState<VoteLine[]>(JSON.parse(JSON.stringify(seniorVotes)));
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -46,7 +54,7 @@ const AdminVoteSubmit = () => {
   useEffect(() => {
     Promise.all([
       supabase.from("rounds").select("id, name").eq("is_active", true).order("round_number"),
-      supabase.from("divisions").select("id, name").eq("is_active", true).order("name"),
+      supabase.from("divisions").select("id, name, division_type").eq("is_active", true).order("name"),
       supabase.from("teams").select("id, name").eq("is_active", true).order("name"),
       supabase.from("profiles").select("user_id, email, full_name"),
     ]).then(([r, d, t, p]) => {
@@ -78,6 +86,17 @@ const AdminVoteSubmit = () => {
       if (f) { setHomeTeam(f.home_team_id); setAwayTeam(f.away_team_id); }
     }
   }, [selectedFixture, fixtures]);
+
+  useEffect(() => {
+    if (selectedDivision) {
+      const type = divisions.find(d => d.id === selectedDivision)?.division_type;
+      if (type === 'junior') {
+        setVoteLines(JSON.parse(JSON.stringify(juniorVotes)));
+      } else {
+        setVoteLines(JSON.parse(JSON.stringify(seniorVotes)));
+      }
+    }
+  }, [selectedDivision, divisions]);
 
   const getTeamName = (id: string) => teams.find((t) => t.id === id)?.name || "";
 
@@ -178,15 +197,17 @@ const AdminVoteSubmit = () => {
             <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">Submitted by admin on behalf of umpire</p>
             <div className="space-y-2 text-left bg-background p-4 rounded-lg">
               {voteLines.map((vl) => (
-                <div key={vl.votes} className={`flex items-center gap-3 p-2 rounded ${vl.votes === 3 ? 'vote-badge-3' : vl.votes === 2 ? 'vote-badge-2' : 'vote-badge-1'}`}>
-                  <Badge variant={vl.votes === 3 ? "default" : "secondary"} className={vl.votes === 3 ? "bg-gold text-gold-foreground" : ""}>{vl.votes}</Badge>
-                  <span className="font-medium">{vl.playerName}</span>
-                  <span className="text-muted-foreground">#{vl.playerNumber}</span>
+                <div key={vl.label} className={`flex items-center gap-3 p-2 rounded ${vl.votes === Math.max(...voteLines.map(v => v.votes)) ? 'vote-badge-3' : 'vote-badge-1'}`}>
+                  <Badge variant={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "default" : "secondary"} className={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "bg-gold text-gold-foreground" : ""}>{vl.votes}</Badge>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{vl.playerName} <span className="text-muted-foreground font-normal">#{vl.playerNumber}</span></span>
+                    <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">{vl.label}</span>
+                  </div>
                   <span className="text-xs text-muted-foreground ml-auto">{getTeamName(vl.teamId)}</span>
                 </div>
               ))}
             </div>
-            <Button onClick={() => { setSubmitted(false); setVoteLines(JSON.parse(JSON.stringify(emptyVotes))); setSelectedFixture(""); setSelectedUmpire(""); }} className="w-full">
+            <Button onClick={() => { setSubmitted(false); setVoteLines(JSON.parse(JSON.stringify(seniorVotes))); setSelectedFixture(""); setSelectedUmpire(""); }} className="w-full">
               Submit another vote
             </Button>
           </CardContent>
@@ -299,13 +320,13 @@ const AdminVoteSubmit = () => {
         </CardHeader>
         <CardContent className="space-y-6">
           {voteLines.map((vl, idx) => (
-            <div key={vl.votes} className={`space-y-3 p-4 rounded-lg ${vl.votes === 3 ? "vote-badge-3" : vl.votes === 2 ? "vote-badge-2" : "vote-badge-1"}`}>
+            <div key={idx} className={`space-y-3 p-4 rounded-lg ${vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "vote-badge-3" : "vote-badge-1"}`}>
               <div className="flex items-center gap-2">
-                <Badge variant={vl.votes === 3 ? "default" : "secondary"} className={vl.votes === 3 ? "bg-gold text-gold-foreground text-base px-3" : "text-base px-3"}>
+                <Badge variant={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "default" : "secondary"} className={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "bg-gold text-gold-foreground text-base px-3" : "text-base px-3"}>
                   {vl.votes}
                 </Badge>
                 <span className="font-semibold">
-                  {vl.votes === 3 ? "Best on Ground" : vl.votes === 2 ? "Second Best" : "Third Best"}
+                  {vl.label}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-3">

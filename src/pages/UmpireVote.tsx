@@ -14,22 +14,30 @@ import { LogOut, CheckCircle2, AlertCircle, User } from "lucide-react";
 import { toast } from "sonner";
 
 interface Round { id: string; name: string; round_number: number; }
-interface Division { id: string; name: string; }
+interface Division { id: string; name: string; division_type?: string; }
 interface Team { id: string; name: string; short_name: string | null; division_id: string | null; }
 interface Fixture { id: string; home_team_id: string; away_team_id: string; venue: string | null; match_date: string | null; }
 interface UmpireProfile { user_id: string; full_name: string | null; email: string; }
 
 interface VoteLine {
   votes: number;
+  label: string;
   playerName: string;
   playerNumber: string;
   teamId: string;
 }
 
-const emptyVotes: VoteLine[] = [
-  { votes: 3, playerName: "", playerNumber: "", teamId: "" },
-  { votes: 2, playerName: "", playerNumber: "", teamId: "" },
-  { votes: 1, playerName: "", playerNumber: "", teamId: "" },
+const seniorVotes: VoteLine[] = [
+  { votes: 3, label: "Best on Ground", playerName: "", playerNumber: "", teamId: "" },
+  { votes: 2, label: "Second Best", playerName: "", playerNumber: "", teamId: "" },
+  { votes: 1, label: "Third Best", playerName: "", playerNumber: "", teamId: "" },
+];
+
+const juniorVotes: VoteLine[] = [
+  { votes: 2, label: "Best Male", playerName: "", playerNumber: "", teamId: "" },
+  { votes: 1, label: "2nd Male", playerName: "", playerNumber: "", teamId: "" },
+  { votes: 2, label: "Best Female", playerName: "", playerNumber: "", teamId: "" },
+  { votes: 1, label: "2nd Female", playerName: "", playerNumber: "", teamId: "" },
 ];
 
 const UmpireVote = () => {
@@ -47,7 +55,7 @@ const UmpireVote = () => {
   const [manualMode, setManualMode] = useState(false);
   const [homeTeam, setHomeTeam] = useState("");
   const [awayTeam, setAwayTeam] = useState("");
-  const [voteLines, setVoteLines] = useState<VoteLine[]>(JSON.parse(JSON.stringify(emptyVotes)));
+  const [voteLines, setVoteLines] = useState<VoteLine[]>(JSON.parse(JSON.stringify(seniorVotes)));
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -146,8 +154,15 @@ const UmpireVote = () => {
           if (!data || data.length === 0) setManualMode(true);
           else setManualMode(false);
         });
+        
+      const type = divisions.find(d => d.id === selectedDivision)?.division_type;
+      if (type === 'junior') {
+        setVoteLines(JSON.parse(JSON.stringify(juniorVotes)));
+      } else {
+        setVoteLines(JSON.parse(JSON.stringify(seniorVotes)));
+      }
     }
-  }, [selectedRound, selectedDivision]);
+  }, [selectedRound, selectedDivision, divisions]);
 
   useEffect(() => {
     if (selectedFixture) {
@@ -364,18 +379,20 @@ const UmpireVote = () => {
               )}
               <div className="space-y-2 text-left bg-secondary p-4 rounded-lg">
                 {voteLines.map((vl) => (
-                  <div key={vl.votes} className={`flex items-center gap-3 p-2 rounded ${vl.votes === 3 ? 'vote-badge-3' : vl.votes === 2 ? 'vote-badge-2' : 'vote-badge-1'}`}>
-                    <Badge variant={vl.votes === 3 ? "default" : "secondary"} className={vl.votes === 3 ? "bg-gold text-gold-foreground" : ""}>
+                  <div key={vl.label} className={`flex items-center gap-3 p-2 rounded ${vl.votes === Math.max(...voteLines.map(v => v.votes)) ? 'vote-badge-3' : 'vote-badge-1'}`}>
+                    <Badge variant={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "default" : "secondary"} className={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "bg-gold text-gold-foreground" : ""}>
                       {vl.votes}
                     </Badge>
-                    <span className="font-medium">{vl.playerName}</span>
-                    <span className="text-muted-foreground">#{vl.playerNumber}</span>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{vl.playerName} <span className="text-muted-foreground font-normal">#{vl.playerNumber}</span></span>
+                      <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">{vl.label}</span>
+                    </div>
                     <span className="text-xs text-muted-foreground ml-auto">{getTeamName(vl.teamId)}</span>
                   </div>
                 ))}
               </div>
               <div className="space-y-2">
-                <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(emptyVotes))); setSelectedFixture(""); setIsProxy(false); setProxyUmpireId(""); setProxyReason(""); }} className="w-full">
+                <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(seniorVotes))); setSelectedFixture(""); setIsProxy(false); setProxyUmpireId(""); setProxyReason(""); }} className="w-full">
                   Submit another vote
                 </Button>
                 <Button variant="outline" onClick={() => navigate("/umpire/history")} className="w-full">
@@ -584,13 +601,13 @@ const UmpireVote = () => {
             </CardHeader>
             <CardContent className="space-y-6">
               {voteLines.map((vl, idx) => (
-                <div key={vl.votes} className={`space-y-3 p-4 rounded-lg ${vl.votes === 3 ? "vote-badge-3" : vl.votes === 2 ? "vote-badge-2" : "vote-badge-1"}`}>
+                <div key={idx} className={`space-y-3 p-4 rounded-lg ${vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "vote-badge-3" : "vote-badge-1"}`}>
                   <div className="flex items-center gap-2">
-                    <Badge variant={vl.votes === 3 ? "default" : "secondary"} className={vl.votes === 3 ? "bg-gold text-gold-foreground text-base px-3" : "text-base px-3"}>
+                    <Badge variant={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "default" : "secondary"} className={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "bg-gold text-gold-foreground text-base px-3" : "text-base px-3"}>
                       {vl.votes}
                     </Badge>
                     <span className="font-semibold">
-                      {vl.votes === 3 ? "Best on Ground" : vl.votes === 2 ? "Second Best" : "Third Best"}
+                      {vl.label}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -668,14 +685,14 @@ const UmpireVote = () => {
                 </div>
               )}
               <div className="space-y-2">
-                {voteLines.map((vl) => (
-                  <div key={vl.votes} className={`flex items-center gap-3 p-3 rounded-lg ${vl.votes === 3 ? "vote-badge-3" : vl.votes === 2 ? "vote-badge-2" : "vote-badge-1"}`}>
-                    <Badge variant={vl.votes === 3 ? "default" : "secondary"} className={vl.votes === 3 ? "bg-gold text-gold-foreground" : ""}>
+                {voteLines.map((vl, idx) => (
+                  <div key={idx} className={`flex items-center gap-3 p-3 rounded-lg ${vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "vote-badge-3" : "vote-badge-1"}`}>
+                    <Badge variant={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "default" : "secondary"} className={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "bg-gold text-gold-foreground" : ""}>
                       {vl.votes}
                     </Badge>
-                    <div>
-                      <span className="font-medium">{vl.playerName}</span>
-                      <span className="text-muted-foreground ml-2">#{vl.playerNumber}</span>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{vl.playerName} <span className="text-muted-foreground ml-1">#{vl.playerNumber}</span></span>
+                      <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">{vl.label}</span>
                     </div>
                     <span className="text-xs text-muted-foreground ml-auto">{getTeamName(vl.teamId)}</span>
                   </div>
