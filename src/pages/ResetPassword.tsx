@@ -18,6 +18,19 @@ const ResetPassword = () => {
   const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
+    // Check URL hash for recovery token (handles race condition with onAuthStateChange)
+    const hash = window.location.hash;
+    if (hash.includes('type=recovery')) {
+      const params = new URLSearchParams(hash.substring(1));
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token') || '';
+      if (accessToken) {
+        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+          .then(() => setSessionReady(true));
+        return;
+      }
+    }
+
     // Listen for the PASSWORD_RECOVERY event from the URL hash
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
