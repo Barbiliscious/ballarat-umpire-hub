@@ -44,7 +44,7 @@ const ManageDivisions = () => {
         fetch();
       }
     } else {
-      const { error } = await supabase.from("divisions").insert({ name, division_type: divisionType });
+      const { error } = await supabase.from("divisions").insert({ name, division_type: divisionType, is_active: true });
       if (error) {
         toast.error(error.message);
       } else {
