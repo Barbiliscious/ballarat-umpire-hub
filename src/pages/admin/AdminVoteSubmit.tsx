@@ -237,15 +237,13 @@ const AdminVoteSubmit = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>Umpire</Label>
-            <Select value={selectedUmpire} onValueChange={setSelectedUmpire}>
-              <SelectTrigger><SelectValue placeholder="Select umpire" /></SelectTrigger>
-              <SelectContent>
-                {umpires.map((u) => (
-                  <SelectItem key={u.user_id} value={u.user_id}>{u.full_name || u.email}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Umpire Name</Label>
+            <Input 
+              type="text"
+              placeholder="Type umpire's name"
+              value={selectedUmpire}
+              onChange={(e) => setSelectedUmpire(e.target.value)}
+            />
           </div>
         </CardContent>
       </Card>
@@ -314,9 +312,10 @@ const AdminVoteSubmit = () => {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Player Votes</CardTitle>
+      {selectedDivision && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Player Votes</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {voteLines.map((vl, idx) => (
@@ -356,6 +355,7 @@ const AdminVoteSubmit = () => {
           </Button>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 };
