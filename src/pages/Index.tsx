@@ -21,7 +21,7 @@ const Index = () => {
         <div className="max-w-3xl w-full text-center space-y-10">
           <div className="space-y-3">
             <h2 className="text-4xl font-bold text-foreground md:text-5xl">
-              Ballarat Hockey Association
+              Umpire Portal
             </h2>
             <p className="text-lg text-muted-foreground max-w-md mx-auto">
               Umpires — submit your best player votes after each match
