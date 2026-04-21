@@ -20,6 +20,10 @@ const ManageTeams = () => {
   const [divisionId, setDivisionId] = useState<string>("none");
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  const [search, setSearch] = useState("");
+  const [filterDivision, setFilterDivision] = useState("all");
+  const [filterActive, setFilterActive] = useState("all");
+
   const resetForm = () => {
     setName("");
     setShortName("");
@@ -58,6 +62,16 @@ const ManageTeams = () => {
     fetchTeams();
   };
 
+  const filteredTeams = teams.filter(t => {
+    if (search && !t.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterDivision !== "all" && t.division_id !== filterDivision) return false;
+    if (filterActive !== "all") {
+      const wantsActive = filterActive === "active";
+      if (t.is_active !== wantsActive) return false;
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -93,13 +107,33 @@ const ManageTeams = () => {
           </DialogContent>
         </Dialog>
       </div>
+
+      <div className="flex flex-wrap gap-3 mb-4">
+        <Input placeholder="Search teams..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-48" />
+        <Select value={filterDivision} onValueChange={setFilterDivision}>
+          <SelectTrigger className="w-48"><SelectValue placeholder="All Divisions" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Divisions</SelectItem>
+            {divisions.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterActive} onValueChange={setFilterActive}>
+          <SelectTrigger className="w-48"><SelectValue placeholder="All Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <Card><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
             <TableHead>Name</TableHead><TableHead>Short</TableHead><TableHead>Division</TableHead><TableHead>Active</TableHead><TableHead className="w-[80px]">Actions</TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {teams.map((t) => (
+            {filteredTeams.map((t) => (
               <TableRow key={t.id}>
                 <TableCell className="font-medium">{t.name}</TableCell>
                 <TableCell>{t.short_name || "—"}</TableCell>

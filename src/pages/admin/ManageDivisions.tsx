@@ -20,6 +20,9 @@ const ManageDivisions = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedDivision, setExpandedDivision] = useState<string | null>(null);
 
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState("all");
+
   const resetForm = () => {
     setName("");
     setDivisionType("senior");
@@ -70,6 +73,12 @@ const ManageDivisions = () => {
     fetch();
   };
 
+  const filteredDivisions = divisions.filter(d => {
+    if (search && !d.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterType !== "all" && (d.division_type || "senior") !== filterType) return false;
+    return true;
+  });
+
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -100,13 +109,26 @@ const ManageDivisions = () => {
           </DialogContent>
         </Dialog>
       </div>
+
+      <div className="flex flex-wrap gap-3 mb-4">
+        <Input placeholder="Search divisions..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-48" />
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger className="w-48"><SelectValue placeholder="All Types" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="senior">Senior</SelectItem>
+            <SelectItem value="junior">Junior</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <Card><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
             <TableHead>Name</TableHead><TableHead>Type</TableHead><TableHead>Active</TableHead><TableHead className="w-[80px]">Actions</TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {divisions.map((d) => (
+            {filteredDivisions.map((d) => (
               <Fragment key={d.id}>
                 <TableRow className="cursor-pointer hover:bg-muted/50" onClick={(e) => toggleExpand(d.id, e)}>
                   <TableCell className="font-medium">
