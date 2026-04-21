@@ -35,7 +35,7 @@ const AdminVoteSubmit = () => {
   const { user } = useAuth();
   const [rounds, setRounds] = useState<{ id: string; name: string }[]>([]);
   const [divisions, setDivisions] = useState<{ id: string; name: string; division_type?: string }[]>([]);
-  const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
+  const [teams, setTeams] = useState<{ id: string; name: string; division_id: string | null }[]>([]);
   const [fixtures, setFixtures] = useState<{ id: string; home_team_id: string; away_team_id: string }[]>([]);
   const [umpires, setUmpires] = useState<{ user_id: string; email: string; full_name: string | null }[]>([]);
 
@@ -55,7 +55,7 @@ const AdminVoteSubmit = () => {
     Promise.all([
       supabase.from("rounds").select("id, name").eq("is_active", true).order("round_number"),
       supabase.from("divisions").select("id, name, division_type").eq("is_active", true).order("name"),
-      supabase.from("teams").select("id, name").eq("is_active", true).order("name"),
+      supabase.from("teams").select("id, name, division_id").eq("is_active", true).order("name"),
       supabase.from("profiles").select("user_id, email, full_name"),
     ]).then(([r, d, t, p]) => {
       if (r.data) setRounds(r.data);
