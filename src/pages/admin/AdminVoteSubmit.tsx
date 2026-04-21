@@ -294,7 +294,7 @@ const AdminVoteSubmit = () => {
                 <Select value={homeTeam} onValueChange={setHomeTeam}>
                   <SelectTrigger><SelectValue placeholder="Select home team" /></SelectTrigger>
                   <SelectContent>
-                    {teams.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    {teams.filter((t) => t.division_id === selectedDivision).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -303,7 +303,7 @@ const AdminVoteSubmit = () => {
                 <Select value={awayTeam} onValueChange={setAwayTeam}>
                   <SelectTrigger><SelectValue placeholder="Select away team" /></SelectTrigger>
                   <SelectContent>
-                    {teams.filter((t) => t.id !== homeTeam).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    {teams.filter((t) => t.division_id === selectedDivision && t.id !== homeTeam).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
