@@ -28,6 +28,8 @@ const ManageUmpires = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
 
+  const [search, setSearch] = useState("");
+
   const fetchUmpires = async () => {
     setLoading(true);
     // Get all user_ids with umpire role
@@ -113,6 +115,10 @@ const ManageUmpires = () => {
         </Button>
       </div>
 
+      <div className="flex flex-wrap gap-3 mb-4">
+        <Input placeholder="Search umpires..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-48" />
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Umpire List</CardTitle>
@@ -134,7 +140,11 @@ const ManageUmpires = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {umpires.map((u) => (
+                {umpires.filter(u => {
+                  if (!search) return true;
+                  const q = search.toLowerCase();
+                  return (u.full_name?.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
+                }).map((u) => (
                   <TableRow key={u.id}>
                     <TableCell>
                       {editingId === u.id ? (

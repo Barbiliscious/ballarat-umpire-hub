@@ -27,6 +27,20 @@ const ManageFixtures = () => {
   const [csvImporting, setCsvImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [filterRound, setFilterRound] = useState("all");
+  const [filterDivision, setFilterDivision] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+
+  const filteredFixtures = fixtures.filter(f => {
+    if (filterRound !== "all" && f.round_id !== filterRound) return false;
+    if (filterDivision !== "all" && f.division_id !== filterDivision) return false;
+    if (filterStatus !== "all") {
+      const wantsLocked = filterStatus === "locked";
+      if (f.is_locked !== wantsLocked) return false;
+    }
+    return true;
+  });
+
   const fetchAll = async () => {
     const [fx, rn, dv, tm] = await Promise.all([
       supabase.from("fixtures").select("*").order("created_at", { ascending: false }),
@@ -196,13 +210,39 @@ const ManageFixtures = () => {
           </Dialog>
         </div>
       </div>
+
+      <div className="flex flex-wrap gap-3 mb-4">
+        <Select value={filterRound} onValueChange={setFilterRound}>
+          <SelectTrigger className="w-48"><SelectValue placeholder="All Rounds" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Rounds</SelectItem>
+            {rounds.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterDivision} onValueChange={setFilterDivision}>
+          <SelectTrigger className="w-48"><SelectValue placeholder="All Divisions" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Divisions</SelectItem>
+            {divisions.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-48"><SelectValue placeholder="All Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="open">Open</SelectItem>
+            <SelectItem value="locked">Locked</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <Card><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
             <TableHead>Round</TableHead><TableHead>Division</TableHead><TableHead>Home</TableHead><TableHead>Away</TableHead><TableHead>Venue</TableHead><TableHead>Status</TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {fixtures.map((f) => (
+            {filteredFixtures.map((f) => (
               <TableRow key={f.id}>
                 <TableCell>{getName(rounds, f.round_id)}</TableCell>
                 <TableCell>{getName(divisions, f.division_id)}</TableCell>
