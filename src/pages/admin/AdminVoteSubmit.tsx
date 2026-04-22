@@ -33,6 +33,7 @@ const juniorVotes: VoteLine[] = [
 
 const AdminVoteSubmit = () => {
   const { user } = useAuth();
+  const [step, setStep] = useState(1);
   const [rounds, setRounds] = useState<{ id: string; name: string }[]>([]);
   const [divisions, setDivisions] = useState<{ id: string; name: string; division_type?: string }[]>([]);
   const [teams, setTeams] = useState<{ id: string; name: string; division_id: string | null }[]>([]);
@@ -207,7 +208,7 @@ const AdminVoteSubmit = () => {
                 </div>
               ))}
             </div>
-            <Button onClick={() => { setSubmitted(false); setVoteLines(JSON.parse(JSON.stringify(seniorVotes))); setSelectedFixture(""); setSelectedUmpire(""); }} className="w-full">
+            <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(seniorVotes))); setSelectedFixture(""); setSelectedUmpire(""); }} className="w-full">
               Submit another vote
             </Button>
           </CardContent>
@@ -220,6 +221,25 @@ const AdminVoteSubmit = () => {
     <div className="max-w-lg mx-auto space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold">Submit Vote on Behalf of Umpire</h1>
 
+      {/* Steps indicator */}
+      <div className="flex flex-col items-center space-y-2">
+        <div className="flex items-center justify-center gap-2">
+          {[1, 2, 3].map((s) => (
+            <div key={s} className="flex items-center gap-2">
+              <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold ${step >= s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                {s}
+              </div>
+              {s < 3 && <div className={`w-12 h-0.5 ${step > s ? "bg-primary" : "bg-muted"}`} />}
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center justify-between w-full max-w-[220px] text-xs font-medium text-muted-foreground px-1">
+          <span className={step >= 1 ? "text-primary" : ""}>Match Info</span>
+          <span className={step >= 2 ? "text-primary text-center" : "text-center"}>Vote</span>
+          <span className={step >= 3 ? "text-primary text-right" : "text-right"}>Confirm</span>
+        </div>
+      </div>
+
       {errors.length > 0 && (
         <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 space-y-1">
           {errors.map((e, i) => (
@@ -230,131 +250,210 @@ const AdminVoteSubmit = () => {
         </div>
       )}
 
-      <Card className="border-amber-300">
-        <CardHeader>
-          <CardTitle>Umpire Selection</CardTitle>
-          <CardDescription className="text-amber-600 dark:text-amber-400">This vote will be flagged as admin-submitted</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Umpire Name</Label>
-            <Input 
-              type="text"
-              placeholder="Type umpire's name"
-              value={selectedUmpire}
-              onChange={(e) => setSelectedUmpire(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Step 1: Match Info */}
+      {step === 1 && (
+        <Card className="animate-fade-in">
+          <CardHeader>
+            <CardTitle>Match Information</CardTitle>
+            <CardDescription>Select the round, division, and fixture</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 space-y-2">
+              <Label className="text-amber-700 dark:text-amber-300 font-semibold">Submitting on behalf of umpire</Label>
+              <Input 
+                type="text"
+                placeholder="Type umpire's name"
+                value={selectedUmpire}
+                onChange={(e) => setSelectedUmpire(e.target.value)}
+                className="bg-background"
+              />
+              <p className="text-xs text-amber-600 dark:text-amber-400">This vote will be flagged as admin-submitted</p>
+            </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Match Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Round</Label>
-            <Select value={selectedRound} onValueChange={setSelectedRound}>
-              <SelectTrigger><SelectValue placeholder="Select round" /></SelectTrigger>
-              <SelectContent>
-                {rounds.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Division</Label>
-            <Select value={selectedDivision} onValueChange={setSelectedDivision}>
-              <SelectTrigger><SelectValue placeholder="Select division" /></SelectTrigger>
-              <SelectContent>
-                {divisions.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          {selectedRound && selectedDivision && !manualMode && fixtures.length > 0 && (
             <div className="space-y-2">
-              <Label>Fixture</Label>
-              <Select value={selectedFixture} onValueChange={setSelectedFixture}>
-                <SelectTrigger><SelectValue placeholder="Select fixture" /></SelectTrigger>
+              <Label>Round</Label>
+              <Select value={selectedRound} onValueChange={setSelectedRound}>
+                <SelectTrigger><SelectValue placeholder="Select round" /></SelectTrigger>
                 <SelectContent>
-                  {fixtures.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      {getTeamName(f.home_team_id)} vs {getTeamName(f.away_team_id)}
-                    </SelectItem>
-                  ))}
+                  {rounds.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-          )}
-          {selectedRound && selectedDivision && manualMode && (
-            <>
-              <p className="text-sm text-muted-foreground">No fixtures found. Select teams manually.</p>
-              <div className="space-y-2">
-                <Label>Home Team</Label>
-                <Select value={homeTeam} onValueChange={setHomeTeam}>
-                  <SelectTrigger><SelectValue placeholder="Select home team" /></SelectTrigger>
-                  <SelectContent>
-                    {teams.filter((t) => t.division_id === selectedDivision).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Away Team</Label>
-                <Select value={awayTeam} onValueChange={setAwayTeam}>
-                  <SelectTrigger><SelectValue placeholder="Select away team" /></SelectTrigger>
-                  <SelectContent>
-                    {teams.filter((t) => t.division_id === selectedDivision && t.id !== homeTeam).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            <div className="space-y-2">
+              <Label>Division</Label>
+              <Select value={selectedDivision} onValueChange={setSelectedDivision}>
+                <SelectTrigger><SelectValue placeholder="Select division" /></SelectTrigger>
+                <SelectContent>
+                  {divisions.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
 
-      {selectedDivision && (
-        <Card>
+            {selectedRound && selectedDivision && !manualMode && fixtures.length > 0 && (
+              <div className="space-y-2">
+                <Label>Fixture</Label>
+                <Select value={selectedFixture} onValueChange={setSelectedFixture}>
+                  <SelectTrigger><SelectValue placeholder="Select fixture" /></SelectTrigger>
+                  <SelectContent>
+                    {fixtures.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {getTeamName(f.home_team_id)} vs {getTeamName(f.away_team_id)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {selectedRound && selectedDivision && manualMode && (
+              <>
+                <p className="text-sm text-muted-foreground">No fixtures found. Select teams manually.</p>
+                <div className="space-y-2">
+                  <Label>Home Team</Label>
+                  <Select value={homeTeam} onValueChange={setHomeTeam}>
+                    <SelectTrigger><SelectValue placeholder="Select home team" /></SelectTrigger>
+                    <SelectContent>
+                      {teams.filter((t) => t.division_id === selectedDivision).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Away Team</Label>
+                  <Select value={awayTeam} onValueChange={setAwayTeam}>
+                    <SelectTrigger><SelectValue placeholder="Select away team" /></SelectTrigger>
+                    <SelectContent>
+                      {teams.filter((t) => t.division_id === selectedDivision && t.id !== homeTeam).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
+            <Button
+              className="w-full"
+              disabled={!selectedUmpire || !selectedRound || !selectedDivision || (!selectedFixture && !manualMode) || (manualMode && (!homeTeam || !awayTeam))}
+              onClick={() => setStep(2)}
+            >
+              Next: Player Votes
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 2: Player Votes */}
+      {step === 2 && (
+        <Card className="animate-fade-in">
           <CardHeader>
             <CardTitle>Player Votes</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {voteLines.map((vl, idx) => (
-            <div key={idx} className={`space-y-3 p-4 rounded-lg ${vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "vote-badge-3" : "vote-badge-1"}`}>
-              <div className="flex items-center gap-2">
-                <Badge variant={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "default" : "secondary"} className={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "bg-gold text-gold-foreground text-base px-3" : "text-base px-3"}>
-                  {vl.votes}
-                </Badge>
-                <span className="font-semibold">
-                  {vl.label}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Player Name</Label>
-                  <Input placeholder="Player name" value={vl.playerName} onChange={(e) => updateVoteLine(idx, "playerName", e.target.value)} />
+            <CardDescription>
+              {getTeamName(homeTeam)} vs {getTeamName(awayTeam)}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {voteLines.map((vl, idx) => (
+              <div key={idx} className={`space-y-3 p-4 rounded-lg ${vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "vote-badge-3" : "vote-badge-1"}`}>
+                <div className="flex items-center gap-2">
+                  <Badge variant={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "default" : "secondary"} className={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "bg-gold text-gold-foreground text-base px-3" : "text-base px-3"}>
+                    {vl.votes}
+                  </Badge>
+                  <span className="font-semibold">
+                    {vl.label}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Player Name</Label>
+                    <Input
+                      placeholder="Player name"
+                      value={vl.playerName}
+                      onChange={(e) => updateVoteLine(idx, "playerName", e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Number</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="99"
+                      placeholder="#"
+                      value={vl.playerNumber}
+                      onChange={(e) => updateVoteLine(idx, "playerNumber", e.target.value)}
+                      inputMode="numeric"
+                      required
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Number</Label>
-                  <Input placeholder="#" value={vl.playerNumber} onChange={(e) => updateVoteLine(idx, "playerNumber", e.target.value)} inputMode="numeric" />
+                  <Label className="text-xs">Team</Label>
+                  <Select value={vl.teamId} onValueChange={(v) => updateVoteLine(idx, "teamId", v)} required>
+                    <SelectTrigger><SelectValue placeholder="Select team" /></SelectTrigger>
+                    <SelectContent>
+                      {matchTeams().map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Team</Label>
-                <Select value={vl.teamId} onValueChange={(v) => updateVoteLine(idx, "teamId", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select team" /></SelectTrigger>
-                  <SelectContent>
-                    {matchTeams().map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          ))}
+            ))}
 
-          <Button className="w-full" disabled={submitting} onClick={handleSubmit}>
-            {submitting ? "Submitting..." : "Submit Vote on Behalf of Umpire"}
-          </Button>
-        </CardContent>
-      </Card>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setStep(1)} className="flex-1">Back</Button>
+              <Button onClick={() => {
+                const hasEmpty = voteLines.some(vl => !vl.playerName.trim() || !vl.playerNumber.trim() || !vl.teamId);
+                if (hasEmpty) {
+                  toast.error("Please fill in all player details before continuing.");
+                  return;
+                }
+                setErrors([]); 
+                setStep(3); 
+              }} className="flex-1">
+                Next: Review
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 3: Confirm */}
+      {step === 3 && (
+        <Card className="animate-fade-in">
+          <CardHeader>
+            <CardTitle>Confirm Your Votes</CardTitle>
+            <CardDescription>
+              {getTeamName(homeTeam)} vs {getTeamName(awayTeam)}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20">
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                Submitting on behalf of: {selectedUmpire}
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 italic">This vote will be flagged as admin-submitted</p>
+            </div>
+            <div className="space-y-2">
+              {voteLines.map((vl, idx) => (
+                <div key={idx} className={`flex items-center gap-3 p-3 rounded-lg ${vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "vote-badge-3" : "vote-badge-1"}`}>
+                  <Badge variant={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "default" : "secondary"} className={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "bg-gold text-gold-foreground" : ""}>
+                    {vl.votes}
+                  </Badge>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{vl.playerName} <span className="text-muted-foreground ml-1">#{vl.playerNumber}</span></span>
+                    <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">{vl.label}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground ml-auto">{getTeamName(vl.teamId)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setStep(2)} className="flex-1">Back</Button>
+              <Button onClick={handleSubmit} disabled={submitting} className="flex-1">
+                {submitting ? "Submitting..." : "Submit Votes"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
