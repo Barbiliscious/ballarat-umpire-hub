@@ -23,18 +23,25 @@ const Dashboard = () => {
   const [profiles, setProfiles] = useState<{ user_id: string; full_name: string | null; email: string }[]>([]);
 
   useEffect(() => {
-    Promise.all([
-      supabase.from("vote_submissions").select("id", { count: "exact", head: true }).eq("is_deleted", false),
-      supabase.from("vote_submissions").select("id", { count: "exact", head: true }).eq("is_deleted", false).eq("is_approved", false),
-      supabase.from("vote_submissions").select("id", { count: "exact", head: true }).eq("is_deleted", false).eq("is_approved", true),
-      supabase.from("profiles").select("id", { count: "exact", head: true }),
-      supabase.from("teams").select("id", { count: "exact", head: true }),
-      supabase.from("rounds").select("id", { count: "exact", head: true }),
-      supabase.from("vote_submissions").select("id, submitted_at, round_id, division_id, umpire_id").eq("is_deleted", false).eq("is_approved", false).order("submitted_at", { ascending: false }).limit(10),
-      supabase.from("rounds").select("id, name"),
-      supabase.from("divisions").select("id, name"),
-      supabase.from("profiles").select("user_id, full_name, email"),
-    ]).then(([subs, pending, approved, umps, teams, rounds, pendingList, roundsList, divsList, profilesList]) => {
+    const load = async () => {
+      const [subs, pending, approved, umps, teams, rounds, pendingList, roundsList, divsList] =
+        await Promise.all([
+          supabase.from("vote_submissions").select("id", { count: "exact", head: true }).eq("is_deleted", false),
+          supabase.from("vote_submissions").select("id", { count: "exact", head: true }).eq("is_deleted", false).eq("is_approved", false),
+          supabase.from("vote_submissions").select("id", { count: "exact", head: true }).eq("is_deleted", false).eq("is_approved", true),
+          supabase.from("profiles").select("id", { count: "exact", head: true }),
+          supabase.from("teams").select("id", { count: "exact", head: true }),
+          supabase.from("rounds").select("id", { count: "exact", head: true }),
+          supabase.from("vote_submissions")
+            .select("id, submitted_at, round_id, division_id, umpire_id")
+            .eq("is_deleted", false)
+            .eq("is_approved", false)
+            .order("submitted_at", { ascending: false })
+            .limit(10),
+          supabase.from("rounds").select("id, name"),
+          supabase.from("divisions").select("id, name"),
+        ]);
+
       setStats({
         submissions: subs.count || 0,
         pending: pending.count || 0,
@@ -43,11 +50,49 @@ const Dashboard = () => {
         teams: teams.count || 0,
         rounds: rounds.count || 0,
       });
-      if (pendingList.data) setPendingSubs(pendingList.data as PendingSubmission[]);
+
+      const fetchedPending = (pendingList.data as PendingSubmission[]) || [];
       if (roundsList.data) setRounds(roundsList.data);
       if (divsList.data) setDivisions(divsList.data);
-      if (profilesList.data) setProfiles(profilesList.data);
-    });
+
+      // Collect the unique umpire IDs from the pending submissions list
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const umpireIds = Array.from(
+        new Set(
+          fetchedPending
+            .map((s) => s.umpire_id)
+            .filter((id) => uuidRegex.test(id))
+        )
+      );
+
+      // Use the get_auth_emails RPC to look up real email addresses
+      // (same method used by the Submissions page)
+      const emailMap: Record<string, string> = {};
+      if (umpireIds.length > 0) {
+        const { data: authEmails, error } = await supabase.rpc(
+          "get_auth_emails" as any,
+          { user_ids: umpireIds }
+        );
+        if (!error && authEmails) {
+          (authEmails as { id: string; email: string }[]).forEach((ae) => {
+            emailMap[ae.id] = ae.email;
+          });
+        }
+      }
+
+      // Store emails in the profiles state so getUmpire() can find them
+      setProfiles(
+        Object.entries(emailMap).map(([id, email]) => ({
+          user_id: id,
+          full_name: null,
+          email,
+        }))
+      );
+
+      setPendingSubs(fetchedPending);
+    };
+
+    load();
   }, []);
 
   const getName = (list: { id: string; name: string }[], id: string) => list.find((i) => i.id === id)?.name || "—";
