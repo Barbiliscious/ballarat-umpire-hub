@@ -180,10 +180,10 @@ const ManageUmpires = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {u.first_login ? new Date(u.first_login).toLocaleDateString() : "—"}
+                      {u.first_login ? new Date(u.first_login).toLocaleDateString("en-AU") : "—"}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {u.last_login ? new Date(u.last_login).toLocaleDateString() : "—"}
+                      {u.last_login ? new Date(u.last_login).toLocaleDateString("en-AU") : "—"}
                     </TableCell>
                     <TableCell>
                       <Button

@@ -134,7 +134,7 @@ const ManageUsers = () => {
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {p.last_login ? new Date(p.last_login).toLocaleDateString() : "—"}
+                    {p.last_login ? new Date(p.last_login).toLocaleDateString("en-AU") : "—"}
                   </TableCell>
                   <TableCell className="text-right">
                     {!isSA && (
