@@ -269,6 +269,7 @@ const Submissions = () => {
                 <TableHead>Submitted By</TableHead>
                 <TableHead>Votes</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Submitted</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -344,6 +345,11 @@ const Submissions = () => {
                           <Badge variant="outline" className="ml-1">Locked</Badge>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {s.submitted_at
+                        ? new Date(s.submitted_at).toLocaleDateString("en-AU")
+                        : "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       {s.is_deleted ? (
