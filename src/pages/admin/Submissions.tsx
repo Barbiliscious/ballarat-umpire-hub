@@ -53,35 +53,76 @@ const Submissions = () => {
   const [rounds, setRounds] = useState<{ id: string; name: string }[]>([]);
   const [divisions, setDivisions] = useState<{ id: string; name: string }[]>([]);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
-  const [profiles, setProfiles] = useState<{ user_id: string; email: string; full_name: string | null }[]>([]);
+  const [profilesMap, setProfilesMap] = useState<Record<string, { email: string; full_name: string | null }>>({});
   const [filterRound, setFilterRound] = useState("all");
   const [filterDivision, setFilterDivision] = useState("all");
   const [search, setSearch] = useState("");
   const [showDeleted, setShowDeleted] = useState(false);
 
   const fetchAll = async () => {
-    const [subsRes, linesRes, roundsRes, divsRes, teamsRes, profilesRes] = await Promise.all([
-      supabase.from("vote_submissions").select("*").order("submitted_at", { ascending: false }),
+    const subsRes = await supabase.from("vote_submissions").select("*").order("submitted_at", { ascending: false });
+    const fetchedSubmissions = (subsRes.data as Submission[]) || [];
+    setSubmissions(fetchedSubmissions);
+
+    const userIds = new Set<string>();
+    fetchedSubmissions.forEach(s => {
+      if (s.umpire_id) userIds.add(s.umpire_id);
+      if (s.deleted_by) userIds.add(s.deleted_by);
+      if (s.proxy_submitter_id) userIds.add(s.proxy_submitter_id);
+      if (s.submitted_by_admin_id) userIds.add(s.submitted_by_admin_id);
+    });
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uniqueUserIds = Array.from(userIds).filter(id => uuidRegex.test(id));
+
+    const [linesRes, roundsRes, divsRes, teamsRes, profilesRes, authEmailsRes] = await Promise.all([
       supabase.from("vote_lines").select("*"),
       supabase.from("rounds").select("id, name").order("round_number"),
       supabase.from("divisions").select("id, name").order("name"),
       supabase.from("teams").select("id, name").order("name"),
-      supabase.from("profiles").select("user_id, email, full_name"),
+      uniqueUserIds.length > 0
+        ? supabase.from("profiles").select("user_id, email, full_name").in("user_id", uniqueUserIds)
+        : Promise.resolve({ data: [] }),
+      uniqueUserIds.length > 0
+        ? supabase.rpc('get_auth_emails' as any, { user_ids: uniqueUserIds })
+        : Promise.resolve({ data: [], error: null }),
     ]);
-    if (subsRes.data) setSubmissions(subsRes.data as Submission[]);
+
     if (linesRes.data) setVoteLines(linesRes.data);
     if (roundsRes.data) setRounds(roundsRes.data);
     if (divsRes.data) setDivisions(divsRes.data);
     if (teamsRes.data) setTeams(teamsRes.data);
-    if (profilesRes.data) setProfiles(profilesRes.data);
+    
+    const pMap: Record<string, { email: string; full_name: string | null }> = {};
+    if (profilesRes.data) {
+      profilesRes.data.forEach((p) => {
+        pMap[p.user_id] = { email: p.email, full_name: p.full_name };
+      });
+    }
+
+    // Safely overlay the authentic auth emails if the function exists
+    if (authEmailsRes && authEmailsRes.data && !authEmailsRes.error) {
+      (authEmailsRes.data as any[]).forEach((ae) => {
+        if (!pMap[ae.id]) {
+          pMap[ae.id] = { email: ae.email, full_name: null };
+        } else {
+          pMap[ae.id].email = ae.email; // Override with true auth email
+        }
+      });
+    } else if (authEmailsRes && authEmailsRes.error) {
+      console.warn("Auth emails RPC missing or failed:", authEmailsRes.error.message);
+    }
+
+    setProfilesMap(pMap);
   };
 
   useEffect(() => { fetchAll(); }, []);
 
   const getName = (list: { id: string; name: string }[], id: string) => list.find((i) => i.id === id)?.name || "—";
-  const getUmpire = (uid: string) => {
-    const p = profiles.find((pr) => pr.user_id === uid);
-    return p?.full_name || p?.email || uid.slice(0, 8);
+  const getUmpireName = (s: Submission) => {
+    const isProxy = !!s.proxy_submitter_id || !!s.submitted_by_admin_id;
+    if (isProxy) return s.umpire_id;
+    const p = profilesMap[s.umpire_id];
+    return p ? p.email : s.umpire_id;
   };
 
   const filtered = submissions.filter((s) => {
@@ -91,7 +132,7 @@ const Submissions = () => {
     if (filterDivision !== "all" && s.division_id !== filterDivision) return false;
     if (search) {
       const q = search.toLowerCase();
-      const umpire = getUmpire(s.umpire_id).toLowerCase();
+      const umpire = getUmpireName(s).toLowerCase();
       const homeTeam = getName(teams, s.home_team_id).toLowerCase();
       const awayTeam = getName(teams, s.away_team_id).toLowerCase();
       if (!umpire.includes(q) && !homeTeam.includes(q) && !awayTeam.includes(q)) return false;
@@ -159,7 +200,7 @@ const Submissions = () => {
         rows.push([
           getName(rounds, s.round_id),
           getName(divisions, s.division_id),
-          getUmpire(s.umpire_id),
+          getUmpireName(s),
           getName(teams, s.home_team_id),
           getName(teams, s.away_team_id),
           String(vl.votes),
@@ -225,6 +266,7 @@ const Submissions = () => {
                 <TableHead>Division</TableHead>
                 <TableHead>Umpire</TableHead>
                 <TableHead>Match</TableHead>
+                <TableHead>Submitted By</TableHead>
                 <TableHead>Votes</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -232,7 +274,7 @@ const Submissions = () => {
             </TableHeader>
             <TableBody>
               {filtered.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No submissions found</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No submissions found</TableCell></TableRow>
               )}
               {filtered.map((s) => {
                 const lines = voteLines.filter((vl) => vl.submission_id === s.id).sort((a, b) => b.votes - a.votes);
@@ -247,33 +289,42 @@ const Submissions = () => {
                     <TableCell>{getName(divisions, s.division_id)}</TableCell>
                     <TableCell>
                       <div>
-                        {getUmpire(s.umpire_id)}
-                        {isAdminSubmitted && (
-                          <div className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-0.5">
-                            Submitted by: {s.submitted_by_admin_name}
-                          </div>
-                        )}
-                        {isProxySubmitted && (
-                          <>
-                            <div className="text-xs text-purple-600 dark:text-purple-400 font-medium mt-0.5">
-                              Proxy: submitted by {s.proxy_submitter_name}
-                            </div>
-                            {s.proxy_reason && (
-                              <div className="text-xs text-muted-foreground italic mt-0.5">
-                                {s.proxy_reason}
-                              </div>
-                            )}
-                          </>
-                        )}
+                        {getUmpireName(s)}
                         {s.is_deleted && s.deleted_by && (
                           <div className="text-xs text-destructive font-medium mt-0.5">
-                            Deleted by: {getUmpire(s.deleted_by)}
+                            Deleted by: {profilesMap[s.deleted_by]?.email || "Unknown"}
                           </div>
                         )}
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">
                       {getName(teams, s.home_team_id)} vs {getName(teams, s.away_team_id)}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        if (!isProxySubmitted && !isAdminSubmitted) return <span>Self</span>;
+
+                        let proxyEmail = "";
+                        let proxyReason = "";
+                        if (isAdminSubmitted) {
+                          proxyEmail = profilesMap[s.submitted_by_admin_id!]?.email || s.submitted_by_admin_name || "Admin";
+                          proxyReason = "Admin submission";
+                        } else if (isProxySubmitted) {
+                          proxyEmail = profilesMap[s.proxy_submitter_id!]?.email || s.proxy_submitter_name || "Proxy";
+                          proxyReason = s.proxy_reason || "";
+                        }
+
+                        return (
+                          <div>
+                            <div>{proxyEmail}</div>
+                            {proxyReason && (
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {proxyReason}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <div className="space-y-0.5">
