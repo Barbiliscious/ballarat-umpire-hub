@@ -101,7 +101,7 @@ const Dashboard = () => {
                     <Badge variant="secondary">{getName(rounds, s.round_id)}</Badge>
                     <span className="text-sm font-medium">{getName(divisions, s.division_id)}</span>
                     <span className="text-sm text-muted-foreground">{getUmpire(s.umpire_id)}</span>
-                    <span className="text-xs text-muted-foreground">{new Date(s.submitted_at).toLocaleDateString()}</span>
+                    <span className="text-xs text-muted-foreground">{new Date(s.submitted_at).toLocaleDateString("en-AU")}</span>
                   </div>
                   <Button variant="outline" size="sm" onClick={() => navigate("/admin/submissions")}>
                     View
