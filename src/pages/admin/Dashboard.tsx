@@ -20,7 +20,7 @@ const Dashboard = () => {
   const [pendingSubs, setPendingSubs] = useState<PendingSubmission[]>([]);
   const [rounds, setRounds] = useState<{ id: string; name: string }[]>([]);
   const [divisions, setDivisions] = useState<{ id: string; name: string }[]>([]);
-  const [profiles, setProfiles] = useState<{ user_id: string; full_name: string | null; email: string }[]>([]);
+  const [profilesMap, setProfilesMap] = useState<Record<string, { email: string; full_name: string | null }>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -65,30 +65,36 @@ const Dashboard = () => {
         )
       );
 
-      // Use the get_auth_emails RPC to look up real email addresses
-      // (same method used by the Submissions page)
-      const emailMap: Record<string, string> = {};
-      if (umpireIds.length > 0) {
-        const { data: authEmails, error } = await supabase.rpc(
-          "get_auth_emails" as any,
-          { user_ids: umpireIds }
-        );
-        if (!error && authEmails) {
-          (authEmails as { id: string; email: string }[]).forEach((ae) => {
-            emailMap[ae.id] = ae.email;
-          });
-        }
+      const [profilesRes, authEmailsRes] = await Promise.all([
+        umpireIds.length > 0
+          ? supabase.from("profiles").select("user_id, email, full_name").in("user_id", umpireIds)
+          : Promise.resolve({ data: [] }),
+        umpireIds.length > 0
+          ? supabase.rpc('get_auth_emails' as any, { user_ids: umpireIds })
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      const pMap: Record<string, { email: string; full_name: string | null }> = {};
+      if (profilesRes.data) {
+        profilesRes.data.forEach((p) => {
+          pMap[p.user_id] = { email: p.email, full_name: p.full_name };
+        });
       }
 
-      // Store emails in the profiles state so getUmpire() can find them
-      setProfiles(
-        Object.entries(emailMap).map(([id, email]) => ({
-          user_id: id,
-          full_name: null,
-          email,
-        }))
-      );
+      // Safely overlay the authentic auth emails if the function exists
+      if (authEmailsRes && authEmailsRes.data && !authEmailsRes.error) {
+        (authEmailsRes.data as any[]).forEach((ae) => {
+          if (!pMap[ae.id]) {
+            pMap[ae.id] = { email: ae.email, full_name: null };
+          } else {
+            pMap[ae.id].email = ae.email; // Override with true auth email
+          }
+        });
+      } else if (authEmailsRes && authEmailsRes.error) {
+        console.warn("Auth emails RPC missing or failed:", authEmailsRes.error.message);
+      }
 
+      setProfilesMap(pMap);
       setPendingSubs(fetchedPending);
     };
 
@@ -97,7 +103,7 @@ const Dashboard = () => {
 
   const getName = (list: { id: string; name: string }[], id: string) => list.find((i) => i.id === id)?.name || "—";
   const getUmpire = (uid: string) => {
-    const p = profiles.find((pr) => pr.user_id === uid);
+    const p = profilesMap[uid];
     return p?.full_name || p?.email || uid.slice(0, 8);
   };
 
