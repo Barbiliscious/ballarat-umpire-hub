@@ -196,6 +196,52 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "invite_user") {
+      const { email, role, full_name } = body;
+
+      // Block super_admin creation
+      if (role === "super_admin") {
+        return new Response(
+          JSON.stringify({ error: "Super admin accounts cannot be created through the app" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Send invite email — user will set their own password
+      const { data: inviteData, error: inviteErr } =
+        await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+          data: { full_name },
+        });
+
+      if (inviteErr) {
+        return new Response(JSON.stringify({ error: inviteErr.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const newUserId = inviteData.user.id;
+
+      // Update the profile name if provided
+      if (full_name) {
+        await supabaseAdmin
+          .from("profiles")
+          .update({ full_name })
+          .eq("user_id", newUserId);
+      }
+
+      // Set the correct role (default is umpire — override if needed)
+      if (role && role !== "umpire") {
+        await supabaseAdmin.from("user_roles").delete().eq("user_id", newUserId);
+        await supabaseAdmin.from("user_roles").insert({ user_id: newUserId, role });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, user_id: newUserId }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
