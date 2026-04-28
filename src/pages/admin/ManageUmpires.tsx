@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Plus, Pencil, Check, X } from "lucide-react";
 
@@ -14,9 +15,9 @@ interface UmpireProfile {
   user_id: string;
   full_name: string | null;
   email: string;
-  first_login: string | null;
-  last_login: string | null;
   created_at: string;
+  last_sign_in_at: string | null;
+  has_password: boolean;
 }
 
 const ManageUmpires = () => {
@@ -32,26 +33,58 @@ const ManageUmpires = () => {
 
   const fetchUmpires = async () => {
     setLoading(true);
-    // Get all user_ids with umpire role
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "umpire");
 
-    if (!roles || roles.length === 0) {
+    const [{ data: subs }, { data: roles }] = await Promise.all([
+      supabase.from("vote_submissions").select("umpire_id").eq("is_deleted", false),
+      supabase.from("user_roles").select("user_id").eq("role", "umpire"),
+    ]);
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const allIds = new Set<string>();
+
+    if (subs) {
+      subs.forEach((s) => {
+        if (s.umpire_id && uuidRegex.test(s.umpire_id)) allIds.add(s.umpire_id);
+      });
+    }
+
+    if (roles) {
+      roles.forEach((r) => {
+        if (r.user_id && uuidRegex.test(r.user_id)) allIds.add(r.user_id);
+      });
+    }
+
+    const uniqueIds = Array.from(allIds);
+
+    if (uniqueIds.length === 0) {
       setUmpires([]);
       setLoading(false);
       return;
     }
 
-    const userIds = roles.map((r) => r.user_id);
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("*")
-      .in("user_id", userIds)
-      .order("created_at", { ascending: false });
+    const [{ data: authDetails }, { data: profiles }] = await Promise.all([
+      supabase.rpc("get_umpire_auth_details" as any, { user_ids: uniqueIds }),
+      supabase.from("profiles").select("*").in("user_id", uniqueIds),
+    ]);
 
-    setUmpires(profiles || []);
+    const mergedUmpires: UmpireProfile[] = uniqueIds.map((uid) => {
+      const p = profiles?.find((prof) => prof.user_id === uid);
+      const auth = (authDetails as any[] || []).find((a) => a.id === uid);
+
+      return {
+        id: p?.id || uid,
+        user_id: uid,
+        full_name: p?.full_name || null,
+        email: auth?.email || p?.email || "No email",
+        created_at: auth?.created_at || p?.created_at || new Date().toISOString(),
+        last_sign_in_at: auth?.last_sign_in_at || null,
+        has_password: auth?.has_password || false,
+      };
+    });
+
+    mergedUmpires.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    setUmpires(mergedUmpires);
     setLoading(false);
   };
 
@@ -136,6 +169,7 @@ const ManageUmpires = () => {
                   <TableHead>Email</TableHead>
                   <TableHead>First Login</TableHead>
                   <TableHead>Last Login</TableHead>
+                  <TableHead>Account Type</TableHead>
                   <TableHead className="w-[80px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -168,22 +202,29 @@ const ManageUmpires = () => {
                         </div>
                       ) : (
                         <span className={u.full_name ? "" : "text-muted-foreground italic"}>
-                          {u.full_name || "No name"}
+                          {u.full_name || "—"}
                         </span>
                       )}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {u.email.includes("@placeholder.local") ? (
+                      {u.email.includes("@placeholder.local") || u.email === "No email" ? (
                         <span className="text-muted-foreground italic">No email</span>
                       ) : (
                         u.email
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {u.first_login ? new Date(u.first_login).toLocaleDateString("en-AU") : "—"}
+                      {u.created_at ? new Date(u.created_at).toLocaleDateString("en-AU") : "—"}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {u.last_login ? new Date(u.last_login).toLocaleDateString("en-AU") : "—"}
+                      {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString("en-AU") : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {u.has_password ? (
+                        <Badge className="bg-blue-500 hover:bg-blue-600 text-white">Password</Badge>
+                      ) : (
+                        <Badge variant="secondary">Magic Link</Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Button
