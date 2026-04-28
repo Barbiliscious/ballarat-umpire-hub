@@ -477,75 +477,77 @@ const ManageUsers = () => {
 
       {/* Edit User Dialog */}
       <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Full Name</Label>
-              <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="User's full name" />
-            </div>
-            <div className="space-y-2">
-              <Label>Role</Label>
-              <Select value={editRole} onValueChange={setEditRole} disabled={editUser?.role === "super_admin"}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="umpire">Umpire</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <Button onClick={handleSaveEdit} disabled={saving} className="w-full">
-              {saving ? "Saving..." : "Save Changes"}
-            </Button>
+        {editUser && (
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit User</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Full Name</Label>
+                <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="User's full name" />
+              </div>
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select value={editRole} onValueChange={setEditRole} disabled={editUser.role === "super_admin"}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="umpire">Umpire</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <Button onClick={handleSaveEdit} disabled={saving} className="w-full">
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
 
-            <div className="border-t pt-4 mt-4">
-              {editUser?.isDisabled ? (
-                <Button
-                  variant="outline"
-                  className="w-full text-green-600 border-green-600 hover:bg-green-50 dark:hover:bg-green-950/30"
-                  onClick={() => handleToggleDisable(editUser.userId, true)}
-                  disabled={togglingDisable === editUser.userId}
-                >
-                  Unblock User
-                </Button>
-              ) : (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full text-red-600 border-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                      disabled={togglingDisable === editUser.userId}
-                    >
-                      Block User
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Block this user?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        They will not be able to log in, including via Magic Link. You can unblock them at any time.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => handleToggleDisable(editUser!.userId, false)}
-                        className="bg-red-600 hover:bg-red-700 text-white"
+              <div className="border-t pt-4 mt-4">
+                {editUser.isDisabled ? (
+                  <Button
+                    variant="outline"
+                    className="w-full text-green-600 border-green-600 hover:bg-green-50 dark:hover:bg-green-950/30"
+                    onClick={() => handleToggleDisable(editUser.userId, true)}
+                    disabled={togglingDisable === editUser.userId}
+                  >
+                    Unblock User
+                  </Button>
+                ) : (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full text-red-600 border-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        disabled={togglingDisable === editUser.userId}
                       >
-                        Block
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
+                        Block User
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Block this user?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          They will not be able to log in, including via Magic Link. You can unblock them at any time.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleToggleDisable(editUser.userId, false)}
+                          className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                          Block
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
             </div>
-          </div>
-        </DialogContent>
+          </DialogContent>
+        )}
       </Dialog>
 
       {/* Add User Dialog */}
