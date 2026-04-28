@@ -9,7 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -24,14 +27,60 @@ const ManageUsers = () => {
   const [inviteRole, setInviteRole] = useState("admin");
   const [inviting, setInviting] = useState(false);
   const [togglingDisable, setTogglingDisable] = useState<string | null>(null);
+  const [updatingRole, setUpdatingRole] = useState<string | null>(null);
 
   const fetchAll = async () => {
-    const [p, r] = await Promise.all([
-      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+    const [{ data: rolesData }, { data: subsData }] = await Promise.all([
       supabase.from("user_roles").select("*"),
+      supabase.from("vote_submissions").select("umpire_id").eq("is_deleted", false),
     ]);
-    if (p.data) setProfiles(p.data);
-    if (r.data) setRoles(r.data);
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const allIds = new Set<string>();
+
+    if (rolesData) {
+      rolesData.forEach(r => {
+        if (r.user_id && uuidRegex.test(r.user_id)) allIds.add(r.user_id);
+      });
+    }
+
+    if (subsData) {
+      subsData.forEach(s => {
+        if (s.umpire_id && uuidRegex.test(s.umpire_id)) allIds.add(s.umpire_id);
+      });
+    }
+
+    const uniqueIds = Array.from(allIds);
+
+    if (uniqueIds.length === 0) {
+      setProfiles([]);
+      setRoles([]);
+      return;
+    }
+
+    const [{ data: authDetails }, { data: profilesData }] = await Promise.all([
+      supabase.rpc("get_umpire_auth_details" as any, { user_ids: uniqueIds }),
+      supabase.from("profiles").select("*").in("user_id", uniqueIds),
+    ]);
+
+    const mergedProfiles = uniqueIds.map(uid => {
+      const p = profilesData?.find(prof => prof.user_id === uid);
+      const auth = (authDetails as any[] || []).find(a => a.id === uid);
+      return {
+        id: p?.id || uid,
+        user_id: uid,
+        email: auth?.email || p?.email || "No email",
+        full_name: p?.full_name || null,
+        is_disabled: p?.is_disabled || false,
+        created_at: auth?.created_at || p?.created_at || new Date().toISOString(),
+        last_sign_in_at: auth?.last_sign_in_at || null,
+      };
+    });
+
+    mergedProfiles.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    setProfiles(mergedProfiles);
+    if (rolesData) setRoles(rolesData);
   };
 
   useEffect(() => { fetchAll(); }, []);
@@ -71,6 +120,20 @@ const ManageUsers = () => {
     }
   };
 
+  const handleUpdateRole = async (userId: string, newRole: string) => {
+    setUpdatingRole(userId);
+    const { data, error } = await supabase.functions.invoke("admin-manage-users", {
+      body: { action: "update_role", user_id: userId, role: newRole },
+    });
+    setUpdatingRole(null);
+    if (error || data?.error) {
+      toast.error(data?.error || error?.message || "Failed to update role");
+    } else {
+      toast.success("Role updated");
+      fetchAll();
+    }
+  };
+
   const handleToggleDisable = async (userId: string, currentlyDisabled: boolean) => {
     setTogglingDisable(userId);
     const action = currentlyDisabled ? "enable_user" : "disable_user";
@@ -81,7 +144,7 @@ const ManageUsers = () => {
     if (error || data?.error) {
       toast.error(data?.error || error?.message || "Failed to update user");
     } else {
-      toast.success(currentlyDisabled ? "User enabled" : "User disabled");
+      toast.success(currentlyDisabled ? "User unblocked" : "User blocked");
       fetchAll();
     }
   };
@@ -93,7 +156,7 @@ const ManageUsers = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Users</h1>
         <Button onClick={() => setShowInvite(true)}>
-          <UserPlus className="mr-2 h-4 w-4" /> Invite Admin
+          <UserPlus className="mr-2 h-4 w-4" /> Add User
         </Button>
       </div>
 
@@ -116,37 +179,84 @@ const ManageUsers = () => {
                   <TableCell className="font-medium">{p.email}</TableCell>
                   <TableCell>{p.full_name || "—"}</TableCell>
                   <TableCell>
-                    {getUserRoles(p.user_id).map((r) => (
-                      <Badge
-                        key={r}
-                        variant={r === "super_admin" ? "default" : r === "admin" ? "default" : "secondary"}
-                        className={`mr-1 ${r === "super_admin" ? "bg-amber-500" : ""}`}
-                      >
-                        {r === "super_admin" ? "Super Admin" : r.charAt(0).toUpperCase() + r.slice(1)}
-                      </Badge>
-                    ))}
+                    {(() => {
+                      const userRoles = getUserRoles(p.user_id);
+                      if (userRoles.length === 0) return <Badge variant="secondary" className="bg-slate-100 text-slate-500">No Role</Badge>;
+                      return userRoles.map((r) => {
+                        if (r === "super_admin") return <Badge key={r} className="bg-amber-500 mr-1">Super Admin</Badge>;
+                        if (r === "admin") return <Badge key={r} variant="default" className="mr-1">Admin</Badge>;
+                        return <Badge key={r} variant="secondary" className="mr-1">Umpire</Badge>;
+                      });
+                    })()}
                   </TableCell>
                   <TableCell>
                     {isDisabled ? (
-                      <Badge variant="destructive">Disabled</Badge>
+                      <Badge variant="destructive">Blocked</Badge>
                     ) : (
-                      <Badge variant="secondary">Active</Badge>
+                      <Badge className="bg-green-500 hover:bg-green-600 text-white">Active</Badge>
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {p.last_login ? new Date(p.last_login).toLocaleDateString("en-AU") : "—"}
+                    {p.last_sign_in_at ? new Date(p.last_sign_in_at).toLocaleDateString("en-AU") : "—"}
                   </TableCell>
                   <TableCell className="text-right">
                     {!isSA && (
                       <div className="flex items-center justify-end gap-2">
-                        <span className="text-xs text-muted-foreground">
-                          {isDisabled ? "Disabled" : "Enabled"}
-                        </span>
-                        <Switch
-                          checked={!isDisabled}
-                          onCheckedChange={() => handleToggleDisable(p.user_id, isDisabled)}
-                          disabled={togglingDisable === p.user_id}
-                        />
+                        <Select
+                          value={getUserRoles(p.user_id)[0] || ""}
+                          onValueChange={(val) => handleUpdateRole(p.user_id, val)}
+                          disabled={updatingRole === p.user_id}
+                        >
+                          <SelectTrigger className="w-[110px] h-8 text-xs">
+                            <SelectValue placeholder="Role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="umpire">Umpire</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        {isDisabled ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-green-600 border-green-600 hover:bg-green-50 dark:text-green-400 dark:border-green-400 dark:hover:bg-green-950/30 h-8 w-[80px]"
+                            onClick={() => handleToggleDisable(p.user_id, isDisabled)}
+                            disabled={togglingDisable === p.user_id}
+                          >
+                            Unblock
+                          </Button>
+                        ) : (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-red-600 border-red-600 hover:bg-red-50 dark:text-red-400 dark:border-red-400 dark:hover:bg-red-950/30 h-8 w-[80px]"
+                                disabled={togglingDisable === p.user_id}
+                              >
+                                Block
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Block this user?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will prevent them from logging in, including via Magic Link. You can unblock them at any time.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleToggleDisable(p.user_id, isDisabled)}
+                                  className="bg-red-600 hover:bg-red-700 text-white"
+                                >
+                                  Block
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                       </div>
                     )}
                   </TableCell>
@@ -160,7 +270,7 @@ const ManageUsers = () => {
       <Dialog open={showInvite} onOpenChange={setShowInvite}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Invite Admin User</DialogTitle>
+            <DialogTitle>Add New User</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
