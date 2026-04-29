@@ -35,6 +35,8 @@ const ManageRounds = () => {
   const [editRoundNumber, setEditRoundNumber] = useState("");
   const [editSeason, setEditSeason] = useState("");
 
+  const [teamsMap, setTeamsMap] = useState<Record<string, string>>({});
+
   const fetch = async () => {
     const { data: roundData } = await supabase.from("rounds").select("*").order("round_number");
     if (roundData) setRounds(roundData);
@@ -42,12 +44,18 @@ const ManageRounds = () => {
     const { data: fixtureData } = await supabase.from("fixtures")
       .select(`
         id, round_id, match_date, venue, pitch, is_bye,
-        divisions(name), 
-        home:teams!fixtures_home_team_id_fkey(name),
-        away:teams!fixtures_away_team_id_fkey(name)
+        home_team_id, away_team_id, division_id,
+        divisions(name)
       `)
       .eq("is_deleted", false);
     if (fixtureData) setFixtures(fixtureData);
+
+    const { data: teamsData } = await supabase.from("teams").select("id, name");
+    if (teamsData) {
+      const map: Record<string, string> = {};
+      teamsData.forEach(t => { map[t.id] = t.name; });
+      setTeamsMap(map);
+    }
   };
 
   useEffect(() => { fetch(); }, []);
@@ -82,14 +90,14 @@ const ManageRounds = () => {
 
   const seasons = useMemo(() => {
     const uniqueSeasons = new Set(rounds.map(r => r.season).filter(Boolean));
-    return Array.from(uniqueSeasons).sort((a, b) => b.localeCompare(a));
+    return Array.from(uniqueSeasons).sort((a, b) => String(b).localeCompare(String(a)));
   }, [rounds]);
 
   const filteredRounds = useMemo(() => {
     return rounds.filter(r => {
-      const matchSearch = searchName === "" || r.name.toLowerCase().includes(searchName.toLowerCase());
-      const matchSeason = filterSeason === "all" || r.season === filterSeason;
-      const matchRound = filterRound === "" || r.round_number.toString() === filterRound;
+      const matchSearch = searchName === "" || (r.name ?? '').toLowerCase().includes(searchName.toLowerCase());
+      const matchSeason = filterSeason === "all" || String(r.season ?? '') === filterSeason;
+      const matchRound = filterRound === "" || String(r.round_number ?? '') === filterRound;
       return matchSearch && matchSeason && matchRound;
     });
   }, [rounds, searchName, filterSeason, filterRound]);
@@ -128,8 +136,8 @@ const ManageRounds = () => {
               <div className="text-xs font-semibold mb-1.5 uppercase text-muted-foreground tracking-wider">{divName}</div>
               <ul className="space-y-1 text-sm text-foreground pl-3 border-l-2 border-muted-foreground/30">
                 {divFixtures.map(f => {
-                  const homeName = f.home?.name || "Unknown";
-                  const awayName = f.is_bye ? "BYE" : (f.away?.name || "Unknown");
+                  const homeName = teamsMap[f.home_team_id] || "Unknown";
+                  const awayName = f.is_bye ? "BYE" : (teamsMap[f.away_team_id] || "Unknown");
                   const dateStr = f.match_date ? new Date(f.match_date).toLocaleString("en-AU", {
                     dateStyle: "medium", timeStyle: "short"
                   }) : "No Date";
