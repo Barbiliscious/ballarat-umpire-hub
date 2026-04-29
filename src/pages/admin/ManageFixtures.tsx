@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Badge } from "@/components/ui/badge";
 import { Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
+import FixtureImport from "@/components/FixtureImport";
 
 const ManageFixtures = () => {
   const [fixtures, setFixtures] = useState<any[]>([]);
@@ -17,15 +18,12 @@ const ManageFixtures = () => {
   const [divisions, setDivisions] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
-  const [csvOpen, setCsvOpen] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [roundId, setRoundId] = useState("");
   const [divisionId, setDivisionId] = useState("");
   const [homeTeamId, setHomeTeamId] = useState("");
   const [awayTeamId, setAwayTeamId] = useState("");
   const [venue, setVenue] = useState("");
-  const [csvErrors, setCsvErrors] = useState<string[]>([]);
-  const [csvImporting, setCsvImporting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [filterRound, setFilterRound] = useState("all");
   const [filterDivision, setFilterDivision] = useState("all");
@@ -68,118 +66,24 @@ const ManageFixtures = () => {
     else { toast.success("Fixture added"); setOpen(false); fetchAll(); }
   };
 
-  const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setCsvErrors([]);
-    setCsvImporting(true);
-
-    const text = await file.text();
-    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-
-    // Skip header if it looks like one
-    let startIdx = 0;
-    if (lines.length > 0 && lines[0].toLowerCase().includes("round_name")) {
-      startIdx = 1;
-    }
-
-    const errors: string[] = [];
-    const toInsert: { round_id: string; division_id: string; home_team_id: string; away_team_id: string; venue: string | null }[] = [];
-
-    for (let i = startIdx; i < lines.length; i++) {
-      const parts = lines[i].split(",").map((p) => p.trim().replace(/^"|"$/g, ""));
-      if (parts.length < 4) {
-        errors.push(`Row ${i + 1}: Not enough columns (need at least 4)`);
-        continue;
-      }
-      const [roundName, divName, homeName, awayName, venueVal] = parts;
-
-      const round = rounds.find((r) => r.name.toLowerCase() === roundName.toLowerCase());
-      if (!round) { errors.push(`Row ${i + 1}: Round "${roundName}" not found`); continue; }
-
-      const div = divisions.find((d) => d.name.toLowerCase() === divName.toLowerCase());
-      if (!div) { errors.push(`Row ${i + 1}: Division "${divName}" not found`); continue; }
-
-      const home = teams.find((t) => t.name.toLowerCase() === homeName.toLowerCase());
-      if (!home) { errors.push(`Row ${i + 1}: Home team "${homeName}" not found`); continue; }
-
-      const away = teams.find((t) => t.name.toLowerCase() === awayName.toLowerCase());
-      if (!away) { errors.push(`Row ${i + 1}: Away team "${awayName}" not found`); continue; }
-
-      if (home.id === away.id) { errors.push(`Row ${i + 1}: Home and away teams are the same`); continue; }
-
-      toInsert.push({
-        round_id: round.id,
-        division_id: div.id,
-        home_team_id: home.id,
-        away_team_id: away.id,
-        venue: venueVal?.trim() || null,
-      });
-    }
-
-    if (toInsert.length > 0) {
-      const { error } = await supabase.from("fixtures").insert(toInsert);
-      if (error) {
-        errors.push(`Database error: ${error.message}`);
-      }
-    }
-
-    setCsvErrors(errors);
-    setCsvImporting(false);
-
-    const imported = toInsert.length;
-    const skipped = (lines.length - startIdx) - imported;
-    toast.success(`${imported} fixtures imported, ${skipped} rows skipped.`);
-
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    if (errors.length === 0) {
-      setCsvOpen(false);
-    }
-    fetchAll();
-  };
 
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">Fixtures</h1>
         <div className="flex gap-2">
-          <Dialog open={csvOpen} onOpenChange={setCsvOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm"><Upload className="mr-1 h-4 w-4" /> Import CSV</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Import Fixtures from CSV</DialogTitle>
-                <DialogDescription>
-                  Upload a CSV file with the following format:
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="bg-muted p-3 rounded-md text-xs font-mono">
-                  round_name,division_name,home_team_name,away_team_name,venue<br />
-                  Round 1,Premier,Ballarat Red,Ballarat White,Victoria Park
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Names must match existing rounds, divisions, and teams (case-insensitive). Venue is optional.
-                </p>
-                <Input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv"
-                  onChange={handleCsvImport}
-                  disabled={csvImporting}
-                />
-                {csvErrors.length > 0 && (
-                  <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 max-h-40 overflow-auto space-y-1">
-                    {csvErrors.map((err, i) => (
-                      <p key={i} className="text-xs text-destructive">{err}</p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button variant="outline" size="sm" onClick={() => setShowImport(true)}>
+            <Upload className="mr-1 h-4 w-4" /> Import Excel
+          </Button>
+          <FixtureImport
+            open={showImport}
+            onClose={() => setShowImport(false)}
+            onImportComplete={fetchAll}
+            divisions={divisions}
+            teams={teams}
+            existingFixtures={fixtures}
+            existingRounds={rounds}
+          />
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button size="sm"><Plus className="mr-1 h-4 w-4" /> Add Fixture</Button>
