@@ -391,6 +391,72 @@ const FixtureImport: React.FC<FixtureImportProps> = ({
     }
   };
 
+  const downloadTemplate = async () => {
+    // Fetch live data from Supabase
+    const [{ data: divData }, { data: teamData }, { data: roundData }] = 
+      await Promise.all([
+        supabase.from('divisions').select('name').order('name'),
+        supabase.from('teams').select('name').order('name'),
+        supabase.from('rounds').select('name', 'round_number').order('round_number'),
+      ]);
+
+    const divisions = [...new Set((divData || []).map(d => d.name))];
+    const teams = [...new Set((teamData || []).map(t => t.name))];
+    const rounds = (roundData || []).map(r => `Round ${r.round_number} – ${r.name}`);
+
+    // Build the workbook using SheetJS
+    const wb = XLSX.utils.book_new();
+
+    // SHEET 1: Blank template with headers
+    const templateHeaders = [
+      [
+        'round_number *',
+        'round_name (optional)',
+        'date *',
+        'time *',
+        'venue *',
+        'pitch *',
+        'grade *',
+        'home_team *',
+        'away_team (Leave blank for bye)',
+        'umpire_1',
+        'umpire_2',
+      ],
+    ];
+    const templateSheet = XLSX.utils.aoa_to_sheet(templateHeaders);
+
+    // Set column widths for readability
+    templateSheet['!cols'] = [
+      { wch: 16 }, { wch: 22 }, { wch: 12 }, { wch: 8 },
+      { wch: 20 }, { wch: 10 }, { wch: 20 }, { wch: 20 },
+      { wch: 28 }, { wch: 20 }, { wch: 20 },
+    ];
+    XLSX.utils.book_append_sheet(wb, templateSheet, 'Fixture Import');
+
+    // SHEET 2: Allowed Values — built from live database data
+    // Find the longest column to size the rows correctly
+    const maxRows = Math.max(divisions.length, teams.length, rounds.length, 1);
+
+    // Build rows: header row first, then data rows
+    const allowedRows: (string | null)[][] = [
+      ['Grade (Division)', 'Teams', 'Existing Rounds'],
+    ];
+    for (let i = 0; i < maxRows; i++) {
+      allowedRows.push([
+        divisions[i] ?? null,
+        teams[i] ?? null,
+        rounds[i] ?? null,
+      ]);
+    }
+
+    const allowedSheet = XLSX.utils.aoa_to_sheet(allowedRows);
+    allowedSheet['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 28 }];
+    XLSX.utils.book_append_sheet(wb, allowedSheet, 'Allowed Values');
+
+    // Trigger download
+    XLSX.writeFile(wb, 'fixture_import_template.xlsx');
+  };
+
   const totalErrors = parsedRows.reduce((sum, r) => sum + r.errors.length, 0);
   const totalWarnings = parsedRows.reduce((sum, r) => sum + r.warnings.length, 0);
   const totalReady = parsedRows.filter(r => r.errors.length === 0).length;
@@ -399,7 +465,14 @@ const FixtureImport: React.FC<FixtureImportProps> = ({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle>Import Fixtures</DialogTitle>
+          <div className="flex justify-between items-center w-full pr-4">
+            <DialogTitle>Import Fixtures</DialogTitle>
+            {!file && !importDone && (
+              <Button variant="outline" size="sm" onClick={() => { downloadTemplate(); }}>
+                Download Template
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         {!file && !importDone && (
