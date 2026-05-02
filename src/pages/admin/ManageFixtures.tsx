@@ -13,6 +13,10 @@ import { ChevronDown, ChevronUp, Pencil, Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
 import FixtureImport from "@/components/FixtureImport";
 
+// Sentinel value used to represent "no away team" (BYE) in the Select component.
+// shadcn Select does not allow value="" so we use this instead.
+const BYE_VALUE = "__bye__";
+
 type FixtureSortKey = "round" | "division" | "home" | "away" | "venue" | "active" | "status";
 type SortDirection = "asc" | "desc";
 
@@ -26,14 +30,14 @@ const ManageFixtures = () => {
   const [roundId, setRoundId] = useState("");
   const [divisionId, setDivisionId] = useState("");
   const [homeTeamId, setHomeTeamId] = useState("");
-  const [awayTeamId, setAwayTeamId] = useState("");
+  const [awayTeamId, setAwayTeamId] = useState(BYE_VALUE);
   const [venue, setVenue] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [editFixture, setEditFixture] = useState<any | null>(null);
   const [editRoundId, setEditRoundId] = useState("");
   const [editDivisionId, setEditDivisionId] = useState("");
   const [editHomeTeamId, setEditHomeTeamId] = useState("");
-  const [editAwayTeamId, setEditAwayTeamId] = useState("");
+  const [editAwayTeamId, setEditAwayTeamId] = useState(BYE_VALUE);
   const [editVenue, setEditVenue] = useState("");
   const [editMatchDate, setEditMatchDate] = useState("");
   const [editIsLocked, setEditIsLocked] = useState(false);
@@ -62,6 +66,11 @@ const ManageFixtures = () => {
   useEffect(() => { fetchAll(); }, []);
 
   const getName = (list: any[], id: string) => list.find((i: any) => i.id === id)?.name || "—";
+
+  // Convert a real away_team_id (or null) to the Select value
+  const toSelectValue = (id: string | null | undefined) => id || BYE_VALUE;
+  // Convert Select value back to a DB value (null for BYE)
+  const fromSelectValue = (v: string) => (v && v !== BYE_VALUE) ? v : null;
 
   const toDateTimeInputValue = (value: string | null) => {
     if (!value) return "";
@@ -117,9 +126,9 @@ const ManageFixtures = () => {
   }, [divisions, filterDivision, filterRound, filterStatus, fixtures, includeInactive, rounds, sortDirection, sortKey, teams]);
 
   const handleAdd = async () => {
-    // Away team is optional (BYE fixtures have no away team)
     if (!roundId || !divisionId || !homeTeamId) return;
-    if (awayTeamId && homeTeamId === awayTeamId) {
+    const realAwayId = fromSelectValue(awayTeamId);
+    if (realAwayId && homeTeamId === realAwayId) {
       toast.error("Teams cannot be the same");
       return;
     }
@@ -127,11 +136,11 @@ const ManageFixtures = () => {
       round_id: roundId,
       division_id: divisionId,
       home_team_id: homeTeamId,
-      away_team_id: awayTeamId || null,
+      away_team_id: realAwayId,
       venue: venue || null,
     });
     if (error) toast.error(error.message);
-    else { toast.success("Fixture added"); setOpen(false); fetchAll(); }
+    else { toast.success("Fixture added"); setOpen(false); setAwayTeamId(BYE_VALUE); fetchAll(); }
   };
 
   const openEdit = (fixture: any) => {
@@ -139,7 +148,7 @@ const ManageFixtures = () => {
     setEditRoundId(fixture.round_id || "");
     setEditDivisionId(fixture.division_id || "");
     setEditHomeTeamId(fixture.home_team_id || "");
-    setEditAwayTeamId(fixture.away_team_id || "");
+    setEditAwayTeamId(toSelectValue(fixture.away_team_id));
     setEditVenue(fixture.venue || "");
     setEditMatchDate(toDateTimeInputValue(fixture.match_date || null));
     setEditIsLocked(Boolean(fixture.is_locked));
@@ -149,12 +158,12 @@ const ManageFixtures = () => {
 
   const handleSaveEdit = async () => {
     if (!editFixture) return;
-    // Away team is optional — only round, division, and home team are required
     if (!editRoundId || !editDivisionId || !editHomeTeamId) {
       toast.error("Round, division, and home team are required");
       return;
     }
-    if (editAwayTeamId && editHomeTeamId === editAwayTeamId) {
+    const realAwayId = fromSelectValue(editAwayTeamId);
+    if (realAwayId && editHomeTeamId === realAwayId) {
       toast.error("Teams cannot be the same");
       return;
     }
@@ -165,7 +174,7 @@ const ManageFixtures = () => {
         round_id: editRoundId,
         division_id: editDivisionId,
         home_team_id: editHomeTeamId,
-        away_team_id: editAwayTeamId || null,
+        away_team_id: realAwayId,
         venue: editVenue.trim() || null,
         match_date: fromDateTimeInputValue(editMatchDate),
         is_locked: editIsLocked,
@@ -227,11 +236,12 @@ const ManageFixtures = () => {
                       <SelectContent>{teams.filter((t: any) => !divisionId || t.division_id === divisionId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
-                  <div><Label>Away Team <span className="text-muted-foreground text-xs">(leave blank for BYE)</span></Label>
+                  <div>
+                    <Label>Away Team <span className="text-muted-foreground text-xs">(leave as BYE if no opponent)</span></Label>
                     <Select value={awayTeamId} onValueChange={setAwayTeamId}>
-                      <SelectTrigger><SelectValue placeholder="— BYE (leave blank) —" /></SelectTrigger>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">— BYE (leave blank) —</SelectItem>
+                        <SelectItem value={BYE_VALUE}>— BYE (no away team) —</SelectItem>
                         {teams.filter((t: any) => (!divisionId || t.division_id === divisionId) && t.id !== homeTeamId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
@@ -288,7 +298,7 @@ const ManageFixtures = () => {
                 <TableCell>{getName(rounds, f.round_id)}</TableCell>
                 <TableCell>{getName(divisions, f.division_id)}</TableCell>
                 <TableCell className="font-medium">{getName(teams, f.home_team_id)}</TableCell>
-                <TableCell className="font-medium">{getName(teams, f.away_team_id)}</TableCell>
+                <TableCell className="font-medium">{f.away_team_id ? getName(teams, f.away_team_id) : "BYE"}</TableCell>
                 <TableCell>{f.venue || "—"}</TableCell>
                 <TableCell>
                   <Badge variant={f.is_active === false ? "secondary" : "default"} className={f.is_active === false ? "" : "bg-success"}>
@@ -322,7 +332,7 @@ const ManageFixtures = () => {
               </Select>
             </div>
             <div><Label>Division</Label>
-              <Select value={editDivisionId} onValueChange={(value) => { setEditDivisionId(value); setEditHomeTeamId(""); setEditAwayTeamId(""); }}>
+              <Select value={editDivisionId} onValueChange={(value) => { setEditDivisionId(value); setEditHomeTeamId(""); setEditAwayTeamId(BYE_VALUE); }}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>{divisions.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
               </Select>
@@ -333,11 +343,12 @@ const ManageFixtures = () => {
                 <SelectContent>{teams.filter((t: any) => !editDivisionId || t.division_id === editDivisionId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Away Team <span className="text-muted-foreground text-xs">(leave blank for BYE)</span></Label>
+            <div>
+              <Label>Away Team <span className="text-muted-foreground text-xs">(leave as BYE if no opponent)</span></Label>
               <Select value={editAwayTeamId} onValueChange={setEditAwayTeamId}>
-                <SelectTrigger><SelectValue placeholder="— BYE (leave blank) —" /></SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">— BYE (leave blank) —</SelectItem>
+                  <SelectItem value={BYE_VALUE}>— BYE (no away team) —</SelectItem>
                   {teams.filter((t: any) => (!editDivisionId || t.division_id === editDivisionId) && t.id !== editHomeTeamId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                 </SelectContent>
               </Select>
