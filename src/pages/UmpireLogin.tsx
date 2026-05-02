@@ -221,8 +221,16 @@ const UmpireLogin = () => {
                 <p className="text-sm text-muted-foreground text-center">
                   Signing in as <strong>{email}</strong>
                 </p>
-
-
+                  <Button
+                  type="button"
+                  variant="default"
+                  size="lg"
+                  className="w-full text-base font-semibold py-6"
+                  onClick={handleSendMagicLink}
+                  disabled={loading}
+                >
+                  Send me a One-Time Link
+                </Button>
 
                 <div className="flex items-center gap-2 text-muted-foreground text-xs">
                   <div className="flex-1 border-t" />
@@ -285,7 +293,7 @@ const UmpireLogin = () => {
                   onClick={handleSendMagicLink}
                   disabled={loading}
                 >
-                  Send me a one-time link
+                  Send me a One-Time Link
                 </Button>
                 <div className="relative flex items-center gap-3 my-2">
                   <div className="flex-1 border-t border-border" />
@@ -344,16 +352,7 @@ const UmpireLogin = () => {
                     {loading ? "Creating..." : "Create account"}
                   </Button>
                 </form>
-                <Button
-                  type="button"
-                  variant="default"
-                  size="lg"
-                  className="w-full text-base font-semibold py-6"
-                  onClick={handleSendMagicLink}
-                  disabled={loading}
-                >
-                  Send me a one-time link instead
-                </Button>
+                
                 <Button type="button" variant="link" size="sm" className="w-full" onClick={resetToEmail}>
                   Use a different email
                 </Button>
@@ -369,6 +368,9 @@ const UmpireLogin = () => {
                 <p className="text-sm text-muted-foreground">
                   Click the link in the email sent to <strong>{email}</strong> to sign in.
                 </p>
+                <div className="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 text-left">
+                  ⚠️ Can't find it? Check your <strong>junk</strong> or <strong>spam</strong> folder — these emails sometimes get filtered.
+                </div>
                 <Button type="button" variant="ghost" className="w-full" onClick={resetToEmail}>
                   Use a different email
                 </Button>
