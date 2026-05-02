@@ -39,7 +39,8 @@ const AdminVoteSubmit = () => {
   const [step, setStep] = useState(1);
   const [rounds, setRounds] = useState<{ id: string; name: string }[]>([]);
   const [divisions, setDivisions] = useState<{ id: string; name: string; division_type?: string }[]>([]);
-  const [teams, setTeams] = useState<{ id: string; name: string; division_id: string | null }[]>([]);
+  const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
+  const [teamDivisions, setTeamDivisions] = useState<{ team_id: string; division_id: string }[]>([]);
   const [fixtures, setFixtures] = useState<{ id: string; home_team_id: string; away_team_id: string }[]>([]);
   const [umpires, setUmpires] = useState<{ user_id: string; email: string; full_name: string | null }[]>([]);
 
@@ -64,16 +65,25 @@ const AdminVoteSubmit = () => {
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
 
+  // Build a map of teamId → divisionId[] using team_divisions table
+  const teamDivisionsMap: Record<string, string[]> = {};
+  teamDivisions.forEach(td => {
+    if (!teamDivisionsMap[td.team_id]) teamDivisionsMap[td.team_id] = [];
+    teamDivisionsMap[td.team_id].push(td.division_id);
+  });
+
   useEffect(() => {
     Promise.all([
       supabase.from("rounds").select("id, name").eq("is_active", true).order("round_number"),
       supabase.from("divisions").select("id, name, division_type").eq("is_active", true).order("name"),
-      supabase.from("teams").select("id, name, division_id").eq("is_active", true).order("name"),
+      supabase.from("teams").select("id, name").eq("is_active", true).order("name"),
+      supabase.from("team_divisions").select("team_id, division_id"),
       supabase.from("profiles").select("user_id, email, full_name"),
-    ]).then(([r, d, t, p]) => {
+    ]).then(([r, d, t, td, p]) => {
       if (r.data) setRounds(r.data);
       if (d.data) setDivisions(d.data);
       if (t.data) setTeams(t.data);
+      if (td.data) setTeamDivisions(td.data);
       if (p.data) setUmpires(p.data);
     });
   }, []);
@@ -377,14 +387,14 @@ const AdminVoteSubmit = () => {
                       <Label>Home Team</Label>
                       <Select value={homeTeam} onValueChange={setHomeTeam}>
                         <SelectTrigger><SelectValue placeholder="Select home team" /></SelectTrigger>
-                        <SelectContent>{teams.filter((t) => t.division_id === selectedDivision).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                        <SelectContent>{teams.filter((t) => (teamDivisionsMap[t.id] || []).includes(selectedDivision)).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
                       <Label>Away Team</Label>
                       <Select value={awayTeam} onValueChange={setAwayTeam}>
                         <SelectTrigger><SelectValue placeholder="Select away team" /></SelectTrigger>
-                        <SelectContent>{teams.filter((t) => t.division_id === selectedDivision && t.id !== homeTeam).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                        <SelectContent>{teams.filter((t) => (teamDivisionsMap[t.id] || []).includes(selectedDivision) && t.id !== homeTeam).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                   </>
