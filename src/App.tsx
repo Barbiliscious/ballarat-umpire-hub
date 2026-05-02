@@ -23,6 +23,7 @@ import AuditLog from "./pages/admin/AuditLog";
 import AdminVoteSubmit from "./pages/admin/AdminVoteSubmit";
 import ManageUmpires from "./pages/admin/ManageUmpires";
 import Leaderboard from "./pages/admin/Leaderboard";
+import ManageVenues from "./pages/admin/ManageVenues";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="divisions" element={<ManageDivisions />} />
               <Route path="teams" element={<ManageTeams />} />
               <Route path="fixtures" element={<ManageFixtures />} />
+              <Route path="venues" element={<ManageVenues />} />
               <Route path="umpires" element={<ManageUmpires />} />
               <Route path="users" element={<ManageUsers />} />
               <Route path="audit" element={<AuditLog />} />
