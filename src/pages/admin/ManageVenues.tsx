@@ -32,6 +32,11 @@ const ManageVenues = () => {
   const [newPitchName, setNewPitchName] = useState("");
   const [savingPitch, setSavingPitch] = useState(false);
 
+  // Edit pitch dialog
+  const [editPitchOpen, setEditPitchOpen] = useState(false);
+  const [editingPitch, setEditingPitch] = useState<any>(null);
+  const [editPitchName, setEditPitchName] = useState("");
+
   const fetchAll = async () => {
     const [vn, pt] = await Promise.all([
       supabase.from("venues").select("*").order("name"),
@@ -101,6 +106,16 @@ const ManageVenues = () => {
     toast.success("Pitch added");
     setAddPitchOpen(false);
     setNewPitchName("");
+    fetchAll();
+  };
+
+  const handleEditPitch = async () => {
+    if (!editingPitch || !editPitchName.trim()) return;
+    const { error } = await supabase.from("venue_pitches").update({ name: editPitchName.trim() }).eq("id", editingPitch.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Pitch updated");
+    setEditPitchOpen(false);
+    setEditingPitch(null);
     fetchAll();
   };
 
@@ -177,7 +192,7 @@ const ManageVenues = () => {
                               </Button>
                             </div>
                             {venuePitches.length === 0 ? (
-                              <p className="text-sm text-muted-foreground italic">No pitches yet — click Add Pitch to get started.</p>
+                              <p className="text-sm text-muted-foreground italic">No pitches — seniors matches use no pitch.</p>
                             ) : (
                               <div className="space-y-1">
                                 {venuePitches.map(pitch => (
@@ -185,6 +200,9 @@ const ManageVenues = () => {
                                     <span className="text-sm">{pitch.name}</span>
                                     <div className="flex items-center gap-2">
                                       <Switch checked={pitch.is_active} onCheckedChange={() => handleTogglePitchActive(pitch)} />
+                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingPitch(pitch); setEditPitchName(pitch.name); setEditPitchOpen(true); }}>
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </Button>
                                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeletePitch(pitch)}>
                                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                                       </Button>
@@ -212,6 +230,7 @@ const ManageVenues = () => {
         </CardContent>
       </Card>
 
+      {/* Add Venue Dialog */}
       <Dialog open={addVenueOpen} onOpenChange={setAddVenueOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Add Venue</DialogTitle></DialogHeader>
@@ -227,6 +246,7 @@ const ManageVenues = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Venue Dialog */}
       <Dialog open={editVenueOpen} onOpenChange={setEditVenueOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Venue</DialogTitle></DialogHeader>
@@ -240,17 +260,32 @@ const ManageVenues = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Add Pitch Dialog */}
       <Dialog open={addPitchOpen} onOpenChange={setAddPitchOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Add Pitch</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>Pitch Name</Label>
-              <Input value={newPitchName} onChange={(e) => setNewPitchName(e.target.value)} placeholder="e.g. EGC, Lucas HC, Full Pitch" />
+              <Input value={newPitchName} onChange={(e) => setNewPitchName(e.target.value)} placeholder="e.g. Full Pitch, Half Pitch North End" />
             </div>
             <Button onClick={handleAddPitch} disabled={savingPitch} className="w-full">
               {savingPitch ? "Adding..." : "Add Pitch"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Pitch Dialog */}
+      <Dialog open={editPitchOpen} onOpenChange={setEditPitchOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Pitch</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Pitch Name</Label>
+              <Input value={editPitchName} onChange={(e) => setEditPitchName(e.target.value)} />
+            </div>
+            <Button onClick={handleEditPitch} className="w-full">Save Changes</Button>
           </div>
         </DialogContent>
       </Dialog>
