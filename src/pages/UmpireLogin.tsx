@@ -138,7 +138,6 @@ const UmpireLogin = () => {
       return;
     }
 
-    // Now sign in
     const { error: signInErr } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password: signupPassword,
@@ -221,7 +220,7 @@ const UmpireLogin = () => {
                 <p className="text-sm text-muted-foreground text-center">
                   Signing in as <strong>{email}</strong>
                 </p>
-                  <Button
+                <Button
                   type="button"
                   variant="default"
                   size="lg"
@@ -231,13 +230,11 @@ const UmpireLogin = () => {
                 >
                   Send me a One-Time Link
                 </Button>
-
                 <div className="flex items-center gap-2 text-muted-foreground text-xs">
                   <div className="flex-1 border-t" />
                   <span>or use your password</span>
                   <div className="flex-1 border-t" />
                 </div>
-
                 <form onSubmit={handlePasswordLogin} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="password">Password</Label>
@@ -265,7 +262,6 @@ const UmpireLogin = () => {
                     {loading ? "Signing in..." : "Sign in"}
                   </Button>
                 </form>
-
                 <Button
                   type="button"
                   variant="ghost"
@@ -352,7 +348,6 @@ const UmpireLogin = () => {
                     {loading ? "Creating..." : "Create account"}
                   </Button>
                 </form>
-                
                 <Button type="button" variant="link" size="sm" className="w-full" onClick={resetToEmail}>
                   Use a different email
                 </Button>
