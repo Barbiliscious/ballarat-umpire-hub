@@ -52,8 +52,7 @@ const ManageRounds = () => {
         id, round_id, match_date, venue, pitch, is_bye,
         home_team_id, away_team_id, division_id,
         divisions(name)
-      `)
-      .eq("is_deleted", false);
+      `);
     if (fixtureData) setFixtures(fixtureData);
 
     const { data: teamsData } = await supabase.from("teams").select("id, name");

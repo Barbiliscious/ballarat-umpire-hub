@@ -133,8 +133,8 @@ const ManageFixtures = () => {
   }, [divisions, filterDivision, filterRound, filterStatus, fixtures, includeInactive, rounds, sortDirection, sortKey, teams]);
 
   const handleAdd = async () => {
-    if (!roundId || !divisionId || !homeTeamId || !awayTeamId) return;
-    if (homeTeamId === awayTeamId) { toast.error("Teams cannot be the same"); return; }
+    if (!roundId || !divisionId || !homeTeamId) return;
+    if (awayTeamId && homeTeamId === awayTeamId) { toast.error("Teams cannot be the same"); return; }
     const { error } = await supabase.from("fixtures").insert({
       round_id: roundId, division_id: divisionId, home_team_id: homeTeamId, away_team_id: awayTeamId, venue: venue || null,
     });
@@ -157,11 +157,11 @@ const ManageFixtures = () => {
 
   const handleSaveEdit = async () => {
     if (!editFixture) return;
-    if (!editRoundId || !editDivisionId || !editHomeTeamId || !editAwayTeamId) {
-      toast.error("Round, division, home team, and away team are required");
+    if (!editRoundId || !editDivisionId || !editHomeTeamId) {
+      toast.error("Round, division, and home team are required");
       return;
     }
-    if (editHomeTeamId === editAwayTeamId) {
+    if (editAwayTeamId && editHomeTeamId === editAwayTeamId) {
       toast.error("Teams cannot be the same");
       return;
     }
@@ -332,7 +332,10 @@ const ManageFixtures = () => {
               </Select></div>
             <div><Label>Away Team</Label>
               <Select value={editAwayTeamId} onValueChange={setEditAwayTeamId}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{teams.filter((t: any) => (!editDivisionId || t.division_id === editDivisionId) && t.id !== editHomeTeamId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  <SelectItem value="">— BYE (leave blank) —</SelectItem>
+                  {teams.filter((t: any) => (!editDivisionId || t.division_id === editDivisionId) && t.id !== editHomeTeamId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
               </Select></div>
             <div><Label>Venue</Label><Input value={editVenue} onChange={(e) => setEditVenue(e.target.value)} placeholder="Optional" /></div>
             <div><Label>Match Date & Time</Label><Input type="datetime-local" value={editMatchDate} onChange={(e) => setEditMatchDate(e.target.value)} /></div>
