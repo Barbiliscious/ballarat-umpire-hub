@@ -221,17 +221,8 @@ const UmpireLogin = () => {
                 <p className="text-sm text-muted-foreground text-center">
                   Signing in as <strong>{email}</strong>
                 </p>
-                
-                <Button
-                  type="button"
-                  variant="default"
-                  size="lg"
-                  className="w-full text-base font-semibold py-6"
-                  onClick={handleSendMagicLink}
-                  disabled={loading}
-                >
-                  Send me a one-time link
-                </Button>
+
+
 
                 <div className="flex items-center gap-2 text-muted-foreground text-xs">
                   <div className="flex-1 border-t" />
@@ -266,7 +257,7 @@ const UmpireLogin = () => {
                     {loading ? "Signing in..." : "Sign in"}
                   </Button>
                 </form>
-                
+
                 <Button
                   type="button"
                   variant="ghost"
@@ -286,6 +277,21 @@ const UmpireLogin = () => {
                 <p className="text-sm text-muted-foreground text-center">
                   Creating account for <strong>{email}</strong>
                 </p>
+                <Button
+                  type="button"
+                  variant="default"
+                  size="lg"
+                  className="w-full text-base font-semibold py-6"
+                  onClick={handleSendMagicLink}
+                  disabled={loading}
+                >
+                  Send me a one-time link
+                </Button>
+                <div className="relative flex items-center gap-3 my-2">
+                  <div className="flex-1 border-t border-border" />
+                  <span className="text-xs text-muted-foreground">or Create an Account</span>
+                  <div className="flex-1 border-t border-border" />
+                </div>
                 <form onSubmit={handleCreateAccount} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="fullName">Full name *</Label>
@@ -340,9 +346,9 @@ const UmpireLogin = () => {
                 </form>
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
+                  variant="default"
+                  size="lg"
+                  className="w-full text-base font-semibold py-6"
                   onClick={handleSendMagicLink}
                   disabled={loading}
                 >
