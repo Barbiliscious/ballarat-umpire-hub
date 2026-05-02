@@ -40,7 +40,6 @@ const ManageRounds = () => {
   const [editName, setEditName] = useState("");
   const [editRoundNumber, setEditRoundNumber] = useState("");
   const [editSeason, setEditSeason] = useState("");
-
   const [teamsMap, setTeamsMap] = useState<Record<string, string>>({});
 
   const fetch = async () => {
@@ -49,8 +48,15 @@ const ManageRounds = () => {
 
     const { data: fixtureData } = await supabase.from("fixtures")
       .select(`
-        id, round_id, match_date, venue, pitch, is_bye,
-        home_team_id, away_team_id, division_id,
+        id,
+        round_id,
+        match_date,
+        venue,
+        pitch,
+        is_bye,
+        home_team_id,
+        away_team_id,
+        division_id,
         divisions(name)
       `);
     if (fixtureData) setFixtures(fixtureData);
@@ -79,13 +85,8 @@ const ManageRounds = () => {
       round_number: parseInt(editRoundNumber),
       season: editSeason.trim()
     }).eq("id", editRound.id);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Round updated");
-      setEditOpen(false);
-      fetch();
-    }
+    if (error) { toast.error(error.message); }
+    else { toast.success("Round updated"); setEditOpen(false); fetch(); }
   };
 
   const toggleActive = async (id: string, current: boolean) => {
@@ -106,28 +107,18 @@ const ManageRounds = () => {
       const matchRound = filterRound === "" || String(r.round_number ?? '') === filterRound;
       return matchSearch && matchSeason && matchRound;
     });
-
     return [...filtered].sort((a, b) => {
       let result = 0;
-      if (sortKey === "roundNumber") {
-        result = Number(a.round_number || 0) - Number(b.round_number || 0);
-      } else if (sortKey === "name") {
-        result = String(a.name || "").localeCompare(String(b.name || ""));
-      } else if (sortKey === "season") {
-        result = String(a.season || "").localeCompare(String(b.season || ""));
-      } else if (sortKey === "active") {
-        result = Number(Boolean(a.is_active)) - Number(Boolean(b.is_active));
-      }
-
+      if (sortKey === "roundNumber") { result = Number(a.round_number || 0) - Number(b.round_number || 0); }
+      else if (sortKey === "name") { result = String(a.name || "").localeCompare(String(b.name || "")); }
+      else if (sortKey === "season") { result = String(a.season || "").localeCompare(String(b.season || "")); }
+      else if (sortKey === "active") { result = Number(Boolean(a.is_active)) - Number(Boolean(b.is_active)); }
       return sortDirection === "asc" ? result : -result;
     });
   }, [includeInactive, rounds, searchName, filterSeason, filterRound, sortDirection, sortKey]);
 
   const handleSort = (key: RoundSortKey) => {
-    if (sortKey === key) {
-      setSortDirection(current => current === "asc" ? "desc" : "asc");
-      return;
-    }
+    if (sortKey === key) { setSortDirection(current => current === "asc" ? "desc" : "asc"); return; }
     setSortKey(key);
     setSortDirection("asc");
   };
@@ -140,9 +131,7 @@ const ManageRounds = () => {
     >
       <span>{label}</span>
       {sortKey === key && (
-        sortDirection === "asc"
-          ? <ChevronUp className="h-3.5 w-3.5" />
-          : <ChevronDown className="h-3.5 w-3.5" />
+        sortDirection === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
       )}
     </button>
   );
@@ -164,14 +153,12 @@ const ManageRounds = () => {
     if (roundFixtures.length === 0) {
       return <div className="text-muted-foreground p-4 text-center text-sm">No fixtures scheduled for this round yet.</div>;
     }
-
     const byDivision = roundFixtures.reduce((acc, f) => {
       const divName = f.divisions?.name || "Unknown Division";
       if (!acc[divName]) acc[divName] = [];
       acc[divName].push(f);
       return acc;
     }, {} as Record<string, any[]>);
-
     return (
       <div className="p-4 bg-muted/20 border-t">
         <h4 className="font-semibold mb-3 text-sm">Fixtures</h4>
@@ -180,12 +167,12 @@ const ManageRounds = () => {
             <div key={divName}>
               <div className="text-xs font-semibold mb-1.5 uppercase text-muted-foreground tracking-wider">{divName}</div>
               <ul className="space-y-1 text-sm text-foreground pl-3 border-l-2 border-muted-foreground/30">
-                {divFixtures.map(f => {
+                {(divFixtures as any[]).map(f => {
                   const homeName = teamsMap[f.home_team_id] || "Unknown";
                   const awayName = f.is_bye ? "BYE" : (teamsMap[f.away_team_id] || "Unknown");
-                  const dateStr = f.match_date ? new Date(f.match_date).toLocaleString("en-AU", {
-                    dateStyle: "medium", timeStyle: "short"
-                  }) : "No Date";
+                  const dateStr = f.match_date
+                    ? new Date(f.match_date).toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" })
+                    : "No Date";
                   return (
                     <li key={f.id} className="flex gap-2">
                       <span className="font-medium">{homeName} vs {awayName}</span>
@@ -211,11 +198,7 @@ const ManageRounds = () => {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Label htmlFor="include-inactive-rounds" className="text-sm font-medium">Include inactive</Label>
-            <Switch
-              id="include-inactive-rounds"
-              checked={includeInactive}
-              onCheckedChange={setIncludeInactive}
-            />
+            <Switch id="include-inactive-rounds" checked={includeInactive} onCheckedChange={setIncludeInactive} />
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -235,19 +218,8 @@ const ManageRounds = () => {
       </div>
 
       <div className="flex gap-3 bg-muted/40 p-3 rounded-lg flex-wrap">
-        <Input 
-          placeholder="Search by name..." 
-          value={searchName} 
-          onChange={e => setSearchName(e.target.value)}
-          className="max-w-[250px]"
-        />
-        <Input 
-          type="number" 
-          placeholder="Round #" 
-          value={filterRound} 
-          onChange={e => setFilterRound(e.target.value)}
-          className="max-w-[120px]"
-        />
+        <Input placeholder="Search by name..." value={searchName} onChange={e => setSearchName(e.target.value)} className="max-w-[250px]" />
+        <Input type="number" placeholder="Round #" value={filterRound} onChange={e => setFilterRound(e.target.value)} className="max-w-[120px]" />
         <Select value={filterSeason} onValueChange={setFilterSeason}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All Seasons" />
@@ -274,7 +246,7 @@ const ManageRounds = () => {
           <TableBody>
             {filteredRounds.map((r) => (
               <React.Fragment key={r.id}>
-                <TableRow 
+                <TableRow
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={(e) => {
                     const target = e.target as HTMLElement;
@@ -283,7 +255,9 @@ const ManageRounds = () => {
                   }}
                 >
                   <TableCell>
-                    {expandedRoundId === r.id ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                    {expandedRoundId === r.id
+                      ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                      : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                   </TableCell>
                   <TableCell>{r.round_number}</TableCell>
                   <TableCell className="font-medium">{r.name}</TableCell>
@@ -331,12 +305,12 @@ const ManageRounds = () => {
               </div>
               <div className="flex items-center justify-between border rounded-lg p-3">
                 <Label>Active Status</Label>
-                <Switch 
-                  checked={editRound.is_active} 
+                <Switch
+                  checked={editRound.is_active}
                   onCheckedChange={() => {
                     toggleActive(editRound.id, editRound.is_active);
                     setEditRound({ ...editRound, is_active: !editRound.is_active });
-                  }} 
+                  }}
                 />
               </div>
               <Button onClick={handleEdit} className="w-full">Save Changes</Button>

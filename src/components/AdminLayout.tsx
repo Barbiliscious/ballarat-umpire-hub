@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { LayoutDashboard, FileText, Settings, Users, LogOut, Trophy, MapPin, Calendar, Layers, PlusCircle, KeyRound, Award } from "lucide-react";
+import { LayoutDashboard, FileText, Settings, Users, LogOut, Trophy, MapPin, Calendar, Layers, PlusCircle, KeyRound, Award, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ const navItems = [
   { to: "/admin/divisions", icon: Layers, label: "Divisions" },
   { to: "/admin/teams", icon: Trophy, label: "Teams" },
   { to: "/admin/fixtures", icon: MapPin, label: "Fixtures" },
+  { to: "/admin/venues", icon: Building2, label: "Venues" },
   { to: "/admin/users", icon: Users, label: "Users" },
   { to: "/admin/audit", icon: Settings, label: "Audit Log" },
 ];
@@ -94,7 +95,8 @@ const AdminLayout = () => {
             onClick={() => setShowChangePassword(true)}
             className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
           >
-            <KeyRound className="mr-2 h-4 w-4" /> Change Password
+            <KeyRound className="mr-2 h-4 w-4" />
+            Change Password
           </Button>
           <Button
             variant="ghost"
@@ -102,7 +104,8 @@ const AdminLayout = () => {
             onClick={signOut}
             className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
           >
-            <LogOut className="mr-2 h-4 w-4" /> Logout
+            <LogOut className="mr-2 h-4 w-4" />
+            Logout
           </Button>
         </div>
       </aside>
@@ -139,7 +142,6 @@ const AdminLayout = () => {
             ))}
           </nav>
         </header>
-
         <main className="flex-1 p-4 md:p-6 overflow-auto">
           <Outlet />
         </main>
@@ -154,11 +156,21 @@ const AdminLayout = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>New Password</Label>
-              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" />
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+              />
             </div>
             <div className="space-y-2">
               <Label>Confirm Password</Label>
-              <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" />
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+              />
             </div>
             <Button onClick={handleChangePassword} disabled={changingPassword} className="w-full">
               {changingPassword ? "Changing..." : "Change Password"}
