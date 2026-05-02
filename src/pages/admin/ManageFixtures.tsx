@@ -13,7 +13,7 @@ import { ChevronDown, ChevronUp, Pencil, Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
 import FixtureImport from "@/components/FixtureImport";
 
-// Sentinel value used to represent "no away team" (BYE) in the Select component.
+// Sentinel value used to represent "no away team" (BYE).
 // shadcn Select does not allow value="" so we use this instead.
 const BYE_VALUE = "__bye__";
 
@@ -67,9 +67,7 @@ const ManageFixtures = () => {
 
   const getName = (list: any[], id: string) => list.find((i: any) => i.id === id)?.name || "—";
 
-  // Convert a real away_team_id (or null) to the Select value
   const toSelectValue = (id: string | null | undefined) => id || BYE_VALUE;
-  // Convert Select value back to a DB value (null for BYE)
   const fromSelectValue = (v: string) => (v && v !== BYE_VALUE) ? v : null;
 
   const toDateTimeInputValue = (value: string | null) => {
@@ -221,7 +219,7 @@ const ManageFixtures = () => {
                   <div><Label>Round</Label>
                     <Select value={roundId} onValueChange={setRoundId}>
                       <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>{rounds.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
+                      <SelectContent>{rounds.map((r) => <SelectItem key={r.id} value={r.id}>{r.name} ({r.season})</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div><Label>Division</Label>
@@ -233,7 +231,7 @@ const ManageFixtures = () => {
                   <div><Label>Home Team</Label>
                     <Select value={homeTeamId} onValueChange={setHomeTeamId}>
                       <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>{teams.filter((t: any) => !divisionId || t.division_id === divisionId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                      <SelectContent>{teams.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div>
@@ -242,7 +240,7 @@ const ManageFixtures = () => {
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value={BYE_VALUE}>— BYE (no away team) —</SelectItem>
-                        {teams.filter((t: any) => (!divisionId || t.division_id === divisionId) && t.id !== homeTeamId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                        {teams.filter((t: any) => t.id !== homeTeamId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -260,7 +258,7 @@ const ManageFixtures = () => {
           <SelectTrigger className="w-48"><SelectValue placeholder="All Rounds" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Rounds</SelectItem>
-            {rounds.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+            {rounds.map(r => <SelectItem key={r.id} value={r.id}>{r.name} ({r.season})</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterDivision} onValueChange={setFilterDivision}>
@@ -328,11 +326,11 @@ const ManageFixtures = () => {
             <div><Label>Round</Label>
               <Select value={editRoundId} onValueChange={setEditRoundId}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{rounds.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
+                <SelectContent>{rounds.map((r) => <SelectItem key={r.id} value={r.id}>{r.name} ({r.season})</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div><Label>Division</Label>
-              <Select value={editDivisionId} onValueChange={(value) => { setEditDivisionId(value); setEditHomeTeamId(""); setEditAwayTeamId(BYE_VALUE); }}>
+              <Select value={editDivisionId} onValueChange={(value) => { setEditDivisionId(value); }}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>{divisions.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
               </Select>
@@ -340,7 +338,7 @@ const ManageFixtures = () => {
             <div><Label>Home Team</Label>
               <Select value={editHomeTeamId} onValueChange={setEditHomeTeamId}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{teams.filter((t: any) => !editDivisionId || t.division_id === editDivisionId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                <SelectContent>{teams.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
@@ -349,7 +347,7 @@ const ManageFixtures = () => {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={BYE_VALUE}>— BYE (no away team) —</SelectItem>
-                  {teams.filter((t: any) => (!editDivisionId || t.division_id === editDivisionId) && t.id !== editHomeTeamId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                  {teams.filter((t: any) => t.id !== editHomeTeamId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
