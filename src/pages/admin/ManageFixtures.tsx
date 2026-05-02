@@ -29,6 +29,7 @@ const ManageFixtures = () => {
   const [teams, setTeams] = useState<any[]>([]);
   const [venues, setVenues] = useState<any[]>([]);
   const [venuePitches, setVenuePitches] = useState<any[]>([]);
+  const [teamDivisionsMap, setTeamDivisionsMap] = useState<Record<string, string[]>>({});
   const [open, setOpen] = useState(false);
   const [showImport, setShowImport] = useState(false);
 
@@ -63,13 +64,14 @@ const ManageFixtures = () => {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const fetchAll = async () => {
-    const [fx, rn, dv, tm, vn, vp] = await Promise.all([
+    const [fx, rn, dv, tm, vn, vp, td] = await Promise.all([
       supabase.from("fixtures").select("*").order("created_at", { ascending: false }),
       supabase.from("rounds").select("*").order("round_number"),
       supabase.from("divisions").select("*").order("name"),
       supabase.from("teams").select("*").order("name"),
       supabase.from("venues").select("*").eq("is_active", true).order("name"),
       supabase.from("venue_pitches").select("*").eq("is_active", true).order("name"),
+      supabase.from("team_divisions").select("team_id, division_id"),
     ]);
     if (fx.data) setFixtures(fx.data);
     if (rn.data) setRounds(rn.data);
@@ -77,11 +79,25 @@ const ManageFixtures = () => {
     if (tm.data) setTeams(tm.data);
     if (vn.data) setVenues(vn.data);
     if (vp.data) setVenuePitches(vp.data);
+    if (td.data) {
+      const map: Record<string, string[]> = {};
+      for (const row of td.data) {
+        if (!map[row.team_id]) map[row.team_id] = [];
+        map[row.team_id].push(row.division_id);
+      }
+      setTeamDivisionsMap(map);
+    }
   };
 
   useEffect(() => { fetchAll(); }, []);
 
   const getName = (list: any[], id: string) => list.find((i: any) => i.id === id)?.name || "—";
+  // Returns teams assigned to the given division via team_divisions.
+  // Falls back to all teams if no division is selected yet.
+  const teamsForDivision = (divId: string) => {
+    if (!divId) return teams;
+    return teams.filter(t => (teamDivisionsMap[t.id] || []).includes(divId));
+  };
   const toSelectValue = (id: string | null | undefined) => id || BYE_VALUE;
   const fromSelectValue = (v: string) => (v && v !== BYE_VALUE) ? v : null;
   // Convert sentinel NO_VENUE to null for saving
@@ -150,7 +166,7 @@ const ManageFixtures = () => {
       round_id: roundId,
       division_id: divisionId,
       home_team_id: homeTeamId,
-      away_team_id: realAwayId,
+      away_team_id: fromSelectValue(awayTeamId),
       venue: fromVenueValue(venue),
       pitch: fromVenueValue(pitch),
     });
@@ -195,7 +211,7 @@ const ManageFixtures = () => {
       round_id: editRoundId,
       division_id: editDivisionId,
       home_team_id: editHomeTeamId,
-      away_team_id: realAwayId,
+      away_team_id: fromSelectValue(editAwayTeamId),
       venue: fromVenueValue(editVenue),
       pitch: fromVenueValue(editPitch),
       match_date: fromDateTimeInputValue(editMatchDate),
@@ -246,7 +262,7 @@ const ManageFixtures = () => {
                   <div><Label>Home Team</Label>
                     <Select value={homeTeamId} onValueChange={setHomeTeamId}>
                       <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>{teams.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                      <SelectContent>{teamsForDivision(divisionId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div>
@@ -255,7 +271,7 @@ const ManageFixtures = () => {
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value={BYE_VALUE}>— BYE (no away team) —</SelectItem>
-                        {teams.filter((t: any) => t.id !== homeTeamId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                        {teamsForDivision(divisionId).filter((t: any) => t.id !== homeTeamId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -364,13 +380,13 @@ const ManageFixtures = () => {
             </div>
             <div><Label>Home Team</Label>
               <Select value={editHomeTeamId} onValueChange={setEditHomeTeamId}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{teams.filter((t: any) => !editDivisionId || t.division_id === editDivisionId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                <SelectContent>{teamsForDivision(editDivisionId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
               </Select></div>
             <div><Label>Away Team</Label>
               <Select value={editAwayTeamId} onValueChange={setEditAwayTeamId}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">— BYE (leave blank) —</SelectItem>
-                  {teams.filter((t: any) => (!editDivisionId || t.division_id === editDivisionId) && t.id !== editHomeTeamId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                  <SelectItem value={BYE_VALUE}>— BYE (leave blank) —</SelectItem>
+                  {teamsForDivision(editDivisionId).filter((t: any) => t.id !== editHomeTeamId).map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                 </SelectContent>
               </Select></div>
             <div><Label>Venue</Label><Input value={editVenue} onChange={(e) => setEditVenue(e.target.value)} placeholder="Optional" /></div>
