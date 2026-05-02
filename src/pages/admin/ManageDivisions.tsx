@@ -17,6 +17,7 @@ type SortDirection = "asc" | "desc";
 const ManageDivisions = () => {
   const [divisions, setDivisions] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
+  const [divisionTeamsMap, setDivisionTeamsMap] = useState<Record<string, string[]>>({});
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [divisionType, setDivisionType] = useState("senior");
@@ -38,8 +39,17 @@ const ManageDivisions = () => {
   const fetch = async () => {
     const { data } = await supabase.from("divisions").select("*").order("name");
     if (data) setDivisions(data);
-    const { data: teamData } = await supabase.from("teams").select("id, name, division_id").order("name");
+    const { data: teamData } = await supabase.from("teams").select("id, name").order("name");
     if (teamData) setTeams(teamData);
+    const { data: tdData } = await supabase.from("team_divisions").select("team_id, division_id");
+    if (tdData) {
+      const map: Record<string, string[]> = {};
+      for (const row of tdData) {
+        if (!map[row.division_id]) map[row.division_id] = [];
+        map[row.division_id].push(row.team_id);
+      }
+      setDivisionTeamsMap(map);
+    }
   };
 
   useEffect(() => { fetch(); }, []);
@@ -210,9 +220,9 @@ const ManageDivisions = () => {
                   <TableRow className="bg-muted/10 hover:bg-muted/10">
                     <TableCell colSpan={4} className="p-0 border-b-0">
                       <div className="bg-muted/30 p-3 pt-2 text-sm shadow-inner overflow-hidden">
-                        {teams.filter(t => t.division_id === d.id).length > 0 ? (
+                        {teams.filter(t => (divisionTeamsMap[d.id] || []).includes(t.id)).length > 0 ? (
                           <div className="flex flex-col gap-1.5 ml-[26px]">
-                            {teams.filter(t => t.division_id === d.id).map(t => (
+                            {teams.filter(t => (divisionTeamsMap[d.id] || []).includes(t.id)).map(t => (
                               <div key={t.id} className="text-muted-foreground flex items-center before:content-[''] before:block before:w-1.5 before:h-1.5 before:rounded-full before:bg-muted-foreground/30 before:mr-3">
                                 {t.name}
                               </div>
