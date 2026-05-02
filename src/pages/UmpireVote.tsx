@@ -15,7 +15,7 @@ import { toast } from "sonner";
 
 interface Round { id: string; name: string; round_number: number; }
 interface Division { id: string; name: string; division_type?: string; }
-interface Team { id: string; name: string; short_name: string | null; division_id: string | null; }
+interface Team { id: string; name: string; short_name: string | null; }
 interface Fixture { id: string; home_team_id: string; away_team_id: string; venue: string | null; match_date: string | null; }
 interface UmpireProfile { user_id: string; full_name: string | null; email: string; }
 
@@ -47,6 +47,7 @@ const UmpireVote = () => {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [teamDivisions, setTeamDivisions] = useState<{ team_id: string; division_id: string }[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
 
   const [selectedRound, setSelectedRound] = useState("");
@@ -73,6 +74,13 @@ const UmpireVote = () => {
   const [proxyReason, setProxyReason] = useState("");
   const [umpireProfiles, setUmpireProfiles] = useState<UmpireProfile[]>([]);
   const [selectedProxyName, setSelectedProxyName] = useState("");
+
+  // Build a map of teamId → divisionId[] from the team_divisions table
+  const teamDivisionsMap: Record<string, string[]> = {};
+  teamDivisions.forEach(td => {
+    if (!teamDivisionsMap[td.team_id]) teamDivisionsMap[td.team_id] = [];
+    teamDivisionsMap[td.team_id].push(td.division_id);
+  });
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/umpire/login");
@@ -138,6 +146,9 @@ const UmpireVote = () => {
     });
     supabase.from("teams").select("*").eq("is_active", true).order("name").then(({ data }) => {
       if (data) setTeams(data);
+    });
+    supabase.from("team_divisions").select("team_id, division_id").then(({ data }) => {
+      if (data) setTeamDivisions(data);
     });
   }, []);
 
@@ -559,7 +570,7 @@ const UmpireVote = () => {
                     <Select value={homeTeam} onValueChange={setHomeTeam}>
                       <SelectTrigger><SelectValue placeholder="Select home team" /></SelectTrigger>
                       <SelectContent>
-                        {teams.filter((t) => t.division_id === selectedDivision).map((t) => (
+                        {teams.filter((t) => (teamDivisionsMap[t.id] || []).includes(selectedDivision)).map((t) => (
                           <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                         ))}
                       </SelectContent>
@@ -570,7 +581,7 @@ const UmpireVote = () => {
                     <Select value={awayTeam} onValueChange={setAwayTeam}>
                       <SelectTrigger><SelectValue placeholder="Select away team" /></SelectTrigger>
                       <SelectContent>
-                        {teams.filter((t) => t.division_id === selectedDivision && t.id !== homeTeam).map((t) => (
+                        {teams.filter((t) => (teamDivisionsMap[t.id] || []).includes(selectedDivision) && t.id !== homeTeam).map((t) => (
                           <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                         ))}
                       </SelectContent>
