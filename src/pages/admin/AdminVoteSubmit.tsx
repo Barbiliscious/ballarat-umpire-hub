@@ -10,12 +10,15 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
+// Sentinel value for custom (free-text) round mode
+const CUSTOM_ROUND = "__custom__";
+
 interface VoteLine {
   votes: number;
   label: string;
   playerName: string;
   playerNumber: string;
-  teamId: string;
+  teamId: string; // stores team ID or free-text team name in custom mode
 }
 
 const seniorVotes: VoteLine[] = [
@@ -47,6 +50,15 @@ const AdminVoteSubmit = () => {
   const [manualMode, setManualMode] = useState(false);
   const [homeTeam, setHomeTeam] = useState("");
   const [awayTeam, setAwayTeam] = useState("");
+
+  // Custom mode state
+  const [customRoundName, setCustomRoundName] = useState("");
+  const [customDivision, setCustomDivision] = useState("");
+  const [customHomeTeam, setCustomHomeTeam] = useState("");
+  const [customAwayTeam, setCustomAwayTeam] = useState("");
+
+  const isCustomMode = selectedRound === CUSTOM_ROUND;
+
   const [voteLines, setVoteLines] = useState<VoteLine[]>(JSON.parse(JSON.stringify(seniorVotes)));
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -67,7 +79,7 @@ const AdminVoteSubmit = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedRound && selectedDivision) {
+    if (selectedRound && selectedDivision && !isCustomMode) {
       supabase
         .from("fixtures")
         .select("id, home_team_id, away_team_id")
@@ -79,7 +91,7 @@ const AdminVoteSubmit = () => {
           setManualMode(!data || data.length === 0);
         });
     }
-  }, [selectedRound, selectedDivision]);
+  }, [selectedRound, selectedDivision, isCustomMode]);
 
   useEffect(() => {
     if (selectedFixture) {
@@ -89,30 +101,44 @@ const AdminVoteSubmit = () => {
   }, [selectedFixture, fixtures]);
 
   useEffect(() => {
-    if (selectedDivision) {
+    if (selectedDivision && !isCustomMode) {
       const type = divisions.find(d => d.id === selectedDivision)?.division_type;
-      if (type === 'junior') {
-        setVoteLines(JSON.parse(JSON.stringify(juniorVotes)));
-      } else {
-        setVoteLines(JSON.parse(JSON.stringify(seniorVotes)));
-      }
+      setVoteLines(JSON.parse(JSON.stringify(type === 'junior' ? juniorVotes : seniorVotes)));
     }
-  }, [selectedDivision, divisions]);
+  }, [selectedDivision, divisions, isCustomMode]);
 
-  const getTeamName = (id: string) => teams.find((t) => t.id === id)?.name || "";
+  const getTeamName = (id: string) => {
+    if (isCustomMode) return id; // in custom mode, teamId holds the text name
+    return teams.find((t) => t.id === id)?.name || "";
+  };
 
   const matchTeams = () => {
+    if (isCustomMode) {
+      // Return pseudo-team objects using text names as IDs
+      const result: { id: string; name: string; division_id: string | null }[] = [];
+      if (customHomeTeam.trim()) result.push({ id: customHomeTeam.trim(), name: customHomeTeam.trim(), division_id: null });
+      if (customAwayTeam.trim()) result.push({ id: customAwayTeam.trim(), name: customAwayTeam.trim(), division_id: null });
+      return result;
+    }
     if (homeTeam && awayTeam) return teams.filter((t) => t.id === homeTeam || t.id === awayTeam);
     return teams;
   };
 
   const validate = (): string[] => {
     const errs: string[] = [];
-    if (!selectedUmpire) errs.push("Umpire is required");
+    if (!selectedUmpire) errs.push("Umpire name is required");
     if (!selectedRound) errs.push("Round is required");
-    if (!selectedDivision) errs.push("Division is required");
-    if (!homeTeam || !awayTeam) errs.push("Both teams are required");
-    if (homeTeam === awayTeam) errs.push("Teams cannot be the same");
+    if (isCustomMode) {
+      if (!customRoundName.trim()) errs.push("Custom round name is required");
+      if (!customDivision.trim()) errs.push("Division name is required");
+      if (!customHomeTeam.trim()) errs.push("Home team name is required");
+      if (!customAwayTeam.trim()) errs.push("Away team name is required");
+      if (customHomeTeam.trim() === customAwayTeam.trim()) errs.push("Teams cannot be the same");
+    } else {
+      if (!selectedDivision) errs.push("Division is required");
+      if (!homeTeam || !awayTeam) errs.push("Both teams are required");
+      if (homeTeam === awayTeam) errs.push("Teams cannot be the same");
+    }
     const names = new Set<string>();
     voteLines.forEach((vl) => {
       if (!vl.playerName.trim()) errs.push(`Player name for ${vl.votes}-vote is required`);
@@ -132,35 +158,44 @@ const AdminVoteSubmit = () => {
     setErrors([]);
     setSubmitting(true);
 
-    // Get admin profile for name
     const adminProfile = umpires.find((u) => u.user_id === user?.id);
     const adminName = adminProfile?.full_name || adminProfile?.email || "Admin";
 
-    let finalFixtureId = selectedFixture || null;
-    if (!finalFixtureId) {
-      const { data: newFixture, error: fxErr } = await supabase
-        .from("fixtures")
-        .insert({ round_id: selectedRound, division_id: selectedDivision, home_team_id: homeTeam, away_team_id: awayTeam })
-        .select("id")
-        .single();
-      if (fxErr || !newFixture) { toast.error("Failed to create fixture"); setSubmitting(false); return; }
-      finalFixtureId = newFixture.id;
+    let finalFixtureId: string | null = null;
+
+    if (!isCustomMode) {
+      finalFixtureId = selectedFixture || null;
+      if (!finalFixtureId) {
+        const { data: newFixture, error: fxErr } = await supabase
+          .from("fixtures")
+          .insert({ round_id: selectedRound, division_id: selectedDivision, home_team_id: homeTeam, away_team_id: awayTeam })
+          .select("id").single();
+        if (fxErr || !newFixture) { toast.error("Failed to create fixture"); setSubmitting(false); return; }
+        finalFixtureId = newFixture.id;
+      }
+    }
+
+    const submissionPayload: Record<string, any> = {
+      fixture_id: finalFixtureId,
+      umpire_id: null,
+      round_id: isCustomMode ? null : selectedRound,
+      division_id: isCustomMode ? null : selectedDivision,
+      home_team_id: isCustomMode ? null : homeTeam,
+      away_team_id: isCustomMode ? null : awayTeam,
+      submitted_by_admin_id: user?.id,
+      submitted_by_admin_name: adminName,
+      proxy_submitter_name: selectedUmpire,
+    };
+
+    if (isCustomMode) {
+      submissionPayload.custom_round = customRoundName.trim();
+      submissionPayload.custom_division = customDivision.trim();
+      submissionPayload.custom_home_team = customHomeTeam.trim();
+      submissionPayload.custom_away_team = customAwayTeam.trim();
     }
 
     const { data: submission, error: subErr } = await supabase
-      .from("vote_submissions")
-      .insert({
-        fixture_id: finalFixtureId,
-        umpire_id: selectedUmpire,
-        round_id: selectedRound,
-        division_id: selectedDivision,
-        home_team_id: homeTeam,
-        away_team_id: awayTeam,
-        submitted_by_admin_id: user?.id,
-        submitted_by_admin_name: adminName,
-      })
-      .select("id")
-      .single();
+      .from("vote_submissions").insert(submissionPayload).select("id").single();
 
     if (subErr) { toast.error(subErr.message); setSubmitting(false); return; }
 
@@ -169,7 +204,8 @@ const AdminVoteSubmit = () => {
       votes: vl.votes,
       player_name: vl.playerName.trim(),
       player_number: parseInt(vl.playerNumber.trim()),
-      team_id: vl.teamId,
+      team_id: isCustomMode ? null : vl.teamId,
+      custom_team: isCustomMode ? vl.teamId : null,
     }));
 
     const { error: linesErr } = await supabase.from("vote_lines").insert(lines);
@@ -186,6 +222,22 @@ const AdminVoteSubmit = () => {
       next[index] = { ...next[index], [field]: value };
       return next;
     });
+  };
+
+  const resetForm = () => {
+    setSubmitted(false);
+    setStep(1);
+    setVoteLines(JSON.parse(JSON.stringify(seniorVotes)));
+    setSelectedFixture("");
+    setSelectedUmpire("");
+    setSelectedRound("");
+    setSelectedDivision("");
+    setHomeTeam("");
+    setAwayTeam("");
+    setCustomRoundName("");
+    setCustomDivision("");
+    setCustomHomeTeam("");
+    setCustomAwayTeam("");
   };
 
   if (submitted) {
@@ -208,9 +260,7 @@ const AdminVoteSubmit = () => {
                 </div>
               ))}
             </div>
-            <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(seniorVotes))); setSelectedFixture(""); setSelectedUmpire(""); }} className="w-full">
-              Submit another vote
-            </Button>
+            <Button onClick={resetForm} className="w-full">Submit another vote</Button>
           </CardContent>
         </Card>
       </div>
@@ -221,14 +271,11 @@ const AdminVoteSubmit = () => {
     <div className="max-w-lg mx-auto space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold">Submit Vote on Behalf of Umpire</h1>
 
-      {/* Steps indicator */}
       <div className="flex flex-col items-center space-y-2">
         <div className="flex items-center justify-center gap-2">
           {[1, 2, 3].map((s) => (
             <div key={s} className="flex items-center gap-2">
-              <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold ${step >= s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                {s}
-              </div>
+              <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold ${step >= s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>{s}</div>
               {s < 3 && <div className={`w-12 h-0.5 ${step > s ? "bg-primary" : "bg-muted"}`} />}
             </div>
           ))}
@@ -250,7 +297,6 @@ const AdminVoteSubmit = () => {
         </div>
       )}
 
-      {/* Step 1: Match Info */}
       {step === 1 && (
         <Card className="animate-fade-in">
           <CardHeader>
@@ -260,184 +306,171 @@ const AdminVoteSubmit = () => {
           <CardContent className="space-y-4">
             <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 space-y-2">
               <Label className="text-amber-700 dark:text-amber-300 font-semibold">Submitting on behalf of umpire</Label>
-              <Input 
-                type="text"
-                placeholder="Type umpire's name"
-                value={selectedUmpire}
-                onChange={(e) => setSelectedUmpire(e.target.value)}
-                className="bg-background"
-              />
+              <Input type="text" placeholder="Type umpire's name" value={selectedUmpire} onChange={(e) => setSelectedUmpire(e.target.value)} className="bg-background" />
               <p className="text-xs text-amber-600 dark:text-amber-400">This vote will be flagged as admin-submitted</p>
             </div>
 
             <div className="space-y-2">
               <Label>Round</Label>
-              <Select value={selectedRound} onValueChange={setSelectedRound}>
+              <Select value={selectedRound} onValueChange={(v) => {
+                setSelectedRound(v);
+                setSelectedDivision("");
+                setSelectedFixture("");
+                setHomeTeam(""); setAwayTeam("");
+                setCustomRoundName(""); setCustomDivision(""); setCustomHomeTeam(""); setCustomAwayTeam("");
+              }}>
                 <SelectTrigger><SelectValue placeholder="Select round" /></SelectTrigger>
                 <SelectContent>
                   {rounds.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Division</Label>
-              <Select value={selectedDivision} onValueChange={setSelectedDivision}>
-                <SelectTrigger><SelectValue placeholder="Select division" /></SelectTrigger>
-                <SelectContent>
-                  {divisions.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                  <SelectItem value={CUSTOM_ROUND}>— Custom (free text) —</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {selectedRound && selectedDivision && !manualMode && fixtures.length > 0 && (
-              <div className="space-y-2">
-                <Label>Fixture</Label>
-                <Select value={selectedFixture} onValueChange={setSelectedFixture}>
-                  <SelectTrigger><SelectValue placeholder="Select fixture" /></SelectTrigger>
-                  <SelectContent>
-                    {fixtures.map((f) => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {getTeamName(f.home_team_id)} vs {getTeamName(f.away_team_id)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {selectedRound && selectedDivision && manualMode && (
+            {isCustomMode ? (
               <>
-                <p className="text-sm text-muted-foreground">No fixtures found. Select teams manually.</p>
+                <div className="space-y-2">
+                  <Label>Custom Round Name</Label>
+                  <Input placeholder="e.g. Round 6, Finals, Friendly" value={customRoundName} onChange={(e) => setCustomRoundName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Division</Label>
+                  <Input placeholder="e.g. Division 1 Open" value={customDivision} onChange={(e) => setCustomDivision(e.target.value)} />
+                </div>
                 <div className="space-y-2">
                   <Label>Home Team</Label>
-                  <Select value={homeTeam} onValueChange={setHomeTeam}>
-                    <SelectTrigger><SelectValue placeholder="Select home team" /></SelectTrigger>
-                    <SelectContent>
-                      {teams.filter((t) => t.division_id === selectedDivision).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Input placeholder="Home team name" value={customHomeTeam} onChange={(e) => setCustomHomeTeam(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Away Team</Label>
-                  <Select value={awayTeam} onValueChange={setAwayTeam}>
-                    <SelectTrigger><SelectValue placeholder="Select away team" /></SelectTrigger>
-                    <SelectContent>
-                      {teams.filter((t) => t.division_id === selectedDivision && t.id !== homeTeam).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                    </SelectContent>
+                  <Input placeholder="Away team name" value={customAwayTeam} onChange={(e) => setCustomAwayTeam(e.target.value)} />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Division</Label>
+                  <Select value={selectedDivision} onValueChange={setSelectedDivision}>
+                    <SelectTrigger><SelectValue placeholder="Select division" /></SelectTrigger>
+                    <SelectContent>{divisions.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
+
+                {selectedRound && selectedDivision && !manualMode && fixtures.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Fixture</Label>
+                    <Select value={selectedFixture} onValueChange={setSelectedFixture}>
+                      <SelectTrigger><SelectValue placeholder="Select fixture" /></SelectTrigger>
+                      <SelectContent>
+                        {fixtures.map((f) => (
+                          <SelectItem key={f.id} value={f.id}>{teams.find(t => t.id === f.home_team_id)?.name} vs {teams.find(t => t.id === f.away_team_id)?.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {selectedRound && selectedDivision && manualMode && (
+                  <>
+                    <p className="text-sm text-muted-foreground">No fixtures found. Select teams manually.</p>
+                    <div className="space-y-2">
+                      <Label>Home Team</Label>
+                      <Select value={homeTeam} onValueChange={setHomeTeam}>
+                        <SelectTrigger><SelectValue placeholder="Select home team" /></SelectTrigger>
+                        <SelectContent>{teams.filter((t) => t.division_id === selectedDivision).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Away Team</Label>
+                      <Select value={awayTeam} onValueChange={setAwayTeam}>
+                        <SelectTrigger><SelectValue placeholder="Select away team" /></SelectTrigger>
+                        <SelectContent>{teams.filter((t) => t.division_id === selectedDivision && t.id !== homeTeam).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
               </>
             )}
 
-            <Button
-              className="w-full"
-              disabled={!selectedUmpire || !selectedRound || !selectedDivision || (!selectedFixture && !manualMode) || (manualMode && (!homeTeam || !awayTeam))}
-              onClick={() => setStep(2)}
-            >
+            <Button className="w-full"
+              disabled={
+                !selectedUmpire || !selectedRound ||
+                (isCustomMode ? (!customRoundName.trim() || !customDivision.trim() || !customHomeTeam.trim() || !customAwayTeam.trim()) :
+                (!selectedDivision || (!selectedFixture && !manualMode) || (manualMode && (!homeTeam || !awayTeam))))
+              }
+              onClick={() => setStep(2)}>
               Next: Player Votes
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Step 2: Player Votes */}
       {step === 2 && (
         <Card className="animate-fade-in">
           <CardHeader>
             <CardTitle>Player Votes</CardTitle>
             <CardDescription>
-              {getTeamName(homeTeam)} vs {getTeamName(awayTeam)}
+              {isCustomMode ? `${customHomeTeam} vs ${customAwayTeam}` : `${getTeamName(homeTeam)} vs ${getTeamName(awayTeam)}`}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {voteLines.map((vl, idx) => (
               <div key={idx} className={`space-y-3 p-4 rounded-lg ${vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "vote-badge-3" : "vote-badge-1"}`}>
                 <div className="flex items-center gap-2">
-                  <Badge variant={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "default" : "secondary"} className={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "bg-gold text-gold-foreground text-base px-3" : "text-base px-3"}>
-                    {vl.votes}
-                  </Badge>
-                  <span className="font-semibold">
-                    {vl.label}
-                  </span>
+                  <Badge variant={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "default" : "secondary"} className={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "bg-gold text-gold-foreground text-base px-3" : "text-base px-3"}>{vl.votes}</Badge>
+                  <span className="font-semibold">{vl.label}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Player Name</Label>
-                    <Input
-                      placeholder="Player name"
-                      value={vl.playerName}
-                      onChange={(e) => updateVoteLine(idx, "playerName", e.target.value)}
-                      required
-                    />
+                    <Input placeholder="Player name" value={vl.playerName} onChange={(e) => updateVoteLine(idx, "playerName", e.target.value)} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Number</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="99"
-                      placeholder="#"
-                      value={vl.playerNumber}
-                      onChange={(e) => updateVoteLine(idx, "playerNumber", e.target.value)}
-                      inputMode="numeric"
-                      required
-                    />
+                    <Input type="number" min="0" max="99" placeholder="#" value={vl.playerNumber} onChange={(e) => updateVoteLine(idx, "playerNumber", e.target.value)} inputMode="numeric" />
                   </div>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Team</Label>
-                  <Select value={vl.teamId} onValueChange={(v) => updateVoteLine(idx, "teamId", v)} required>
+                  <Select value={vl.teamId} onValueChange={(v) => updateVoteLine(idx, "teamId", v)}>
                     <SelectTrigger><SelectValue placeholder="Select team" /></SelectTrigger>
                     <SelectContent>
-                      {matchTeams().map((t) => (
-                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                      ))}
+                      {matchTeams().map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
             ))}
-
             <div className="flex gap-3">
               <Button variant="outline" onClick={() => setStep(1)} className="flex-1">Back</Button>
               <Button onClick={() => {
                 const hasEmpty = voteLines.some(vl => !vl.playerName.trim() || !vl.playerNumber.trim() || !vl.teamId);
-                if (hasEmpty) {
-                  toast.error("Please fill in all player details before continuing.");
-                  return;
-                }
-                setErrors([]); 
-                setStep(3); 
-              }} className="flex-1">
-                Next: Review
-              </Button>
+                if (hasEmpty) { toast.error("Please fill in all player details before continuing."); return; }
+                setErrors([]); setStep(3);
+              }} className="flex-1">Next: Review</Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Step 3: Confirm */}
       {step === 3 && (
         <Card className="animate-fade-in">
           <CardHeader>
             <CardTitle>Confirm Your Votes</CardTitle>
             <CardDescription>
-              {getTeamName(homeTeam)} vs {getTeamName(awayTeam)}
+              {isCustomMode ? `${customRoundName} — ${customDivision} — ${customHomeTeam} vs ${customAwayTeam}` : `${getTeamName(homeTeam)} vs ${getTeamName(awayTeam)}`}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20">
-              <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                Submitting on behalf of: {selectedUmpire}
-              </p>
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 italic">This vote will be flagged as admin-submitted</p>
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Submitting on behalf of: {selectedUmpire}</p>
+              {isCustomMode && <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Custom match — not linked to a scheduled fixture</p>}
+              {!isCustomMode && <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 italic">This vote will be flagged as admin-submitted</p>}
             </div>
             <div className="space-y-2">
               {voteLines.map((vl, idx) => (
                 <div key={idx} className={`flex items-center gap-3 p-3 rounded-lg ${vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "vote-badge-3" : "vote-badge-1"}`}>
-                  <Badge variant={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "default" : "secondary"} className={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "bg-gold text-gold-foreground" : ""}>
-                    {vl.votes}
-                  </Badge>
+                  <Badge variant={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "default" : "secondary"} className={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "bg-gold text-gold-foreground" : ""}>{vl.votes}</Badge>
                   <div className="flex flex-col">
                     <span className="font-medium">{vl.playerName} <span className="text-muted-foreground ml-1">#{vl.playerNumber}</span></span>
                     <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">{vl.label}</span>
@@ -448,9 +481,7 @@ const AdminVoteSubmit = () => {
             </div>
             <div className="flex gap-3">
               <Button variant="outline" onClick={() => setStep(2)} className="flex-1">Back</Button>
-              <Button onClick={handleSubmit} disabled={submitting} className="flex-1">
-                {submitting ? "Submitting..." : "Submit Votes"}
-              </Button>
+              <Button onClick={handleSubmit} disabled={submitting} className="flex-1">{submitting ? "Submitting..." : "Submit Votes"}</Button>
             </div>
           </CardContent>
         </Card>
