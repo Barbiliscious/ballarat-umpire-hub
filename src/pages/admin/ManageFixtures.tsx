@@ -16,6 +16,8 @@ import FixtureImport from "@/components/FixtureImport";
 // Sentinel value used to represent "no away team" (BYE).
 // shadcn Select does not allow value="" so we use this instead.
 const BYE_VALUE = "__bye__";
+// Sentinel value used to represent "no venue selected"
+const NO_VENUE = "__none__";
 
 type FixtureSortKey = "round" | "division" | "home" | "away" | "venue" | "active" | "status";
 type SortDirection = "asc" | "desc";
@@ -25,24 +27,34 @@ const ManageFixtures = () => {
   const [rounds, setRounds] = useState<any[]>([]);
   const [divisions, setDivisions] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
+  const [venues, setVenues] = useState<any[]>([]);
+  const [venuePitches, setVenuePitches] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [showImport, setShowImport] = useState(false);
+
+  // Add dialog state
   const [roundId, setRoundId] = useState("");
   const [divisionId, setDivisionId] = useState("");
   const [homeTeamId, setHomeTeamId] = useState("");
   const [awayTeamId, setAwayTeamId] = useState(BYE_VALUE);
-  const [venue, setVenue] = useState("");
+  const [venue, setVenue] = useState(NO_VENUE);
+  const [pitch, setPitch] = useState(NO_VENUE);
+
+  // Edit dialog state
   const [editOpen, setEditOpen] = useState(false);
   const [editFixture, setEditFixture] = useState<any | null>(null);
   const [editRoundId, setEditRoundId] = useState("");
   const [editDivisionId, setEditDivisionId] = useState("");
   const [editHomeTeamId, setEditHomeTeamId] = useState("");
   const [editAwayTeamId, setEditAwayTeamId] = useState(BYE_VALUE);
-  const [editVenue, setEditVenue] = useState("");
+  const [editVenue, setEditVenue] = useState(NO_VENUE);
+  const [editPitch, setEditPitch] = useState(NO_VENUE);
   const [editMatchDate, setEditMatchDate] = useState("");
   const [editIsLocked, setEditIsLocked] = useState(false);
   const [editIsActive, setEditIsActive] = useState(true);
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Filter/sort state
   const [filterRound, setFilterRound] = useState("all");
   const [filterDivision, setFilterDivision] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -51,24 +63,35 @@ const ManageFixtures = () => {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const fetchAll = async () => {
-    const [fx, rn, dv, tm] = await Promise.all([
+    const [fx, rn, dv, tm, vn, vp] = await Promise.all([
       supabase.from("fixtures").select("*").order("created_at", { ascending: false }),
       supabase.from("rounds").select("*").order("round_number"),
       supabase.from("divisions").select("*").order("name"),
       supabase.from("teams").select("*").order("name"),
+      supabase.from("venues").select("*").eq("is_active", true).order("name"),
+      supabase.from("venue_pitches").select("*").eq("is_active", true).order("name"),
     ]);
     if (fx.data) setFixtures(fx.data);
     if (rn.data) setRounds(rn.data);
     if (dv.data) setDivisions(dv.data);
     if (tm.data) setTeams(tm.data);
+    if (vn.data) setVenues(vn.data);
+    if (vp.data) setVenuePitches(vp.data);
   };
 
   useEffect(() => { fetchAll(); }, []);
 
   const getName = (list: any[], id: string) => list.find((i: any) => i.id === id)?.name || "—";
-
   const toSelectValue = (id: string | null | undefined) => id || BYE_VALUE;
   const fromSelectValue = (v: string) => (v && v !== BYE_VALUE) ? v : null;
+  // Convert sentinel NO_VENUE to null for saving
+  const fromVenueValue = (v: string) => (v && v !== NO_VENUE) ? v : null;
+  // Get pitches for a given venue name
+  const pitchesForVenue = (venueName: string) => {
+    const matchedVenue = venues.find(v => v.name === venueName);
+    if (!matchedVenue) return [];
+    return venuePitches.filter(p => p.venue_id === matchedVenue.id);
+  };
 
   const toDateTimeInputValue = (value: string | null) => {
     if (!value) return "";
@@ -81,21 +104,18 @@ const ManageFixtures = () => {
   const fromDateTimeInputValue = (value: string) => value ? new Date(value).toISOString() : null;
 
   const handleSort = (key: FixtureSortKey) => {
-    if (sortKey === key) { setSortDirection(current => current === "asc" ? "desc" : "asc"); return; }
+    if (sortKey === key) {
+      setSortDirection(current => current === "asc" ? "desc" : "asc");
+      return;
+    }
     setSortKey(key);
     setSortDirection("asc");
   };
 
   const renderSortHeader = (key: FixtureSortKey, label: string) => (
-    <button
-      type="button"
-      className="flex items-center gap-1 text-left font-medium text-muted-foreground transition-colors hover:text-foreground"
-      onClick={() => handleSort(key)}
-    >
+    <button type="button" className="flex items-center gap-1 text-left font-medium text-muted-foreground transition-colors hover:text-foreground" onClick={() => handleSort(key)}>
       <span>{label}</span>
-      {sortKey === key && (
-        sortDirection === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
-      )}
+      {sortKey === key && (sortDirection === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />)}
     </button>
   );
 
@@ -112,13 +132,13 @@ const ManageFixtures = () => {
     });
     return [...filtered].sort((a, b) => {
       let result = 0;
-      if (sortKey === "round") { result = getName(rounds, a.round_id).localeCompare(getName(rounds, b.round_id)); }
-      else if (sortKey === "division") { result = getName(divisions, a.division_id).localeCompare(getName(divisions, b.division_id)); }
-      else if (sortKey === "home") { result = getName(teams, a.home_team_id).localeCompare(getName(teams, b.home_team_id)); }
-      else if (sortKey === "away") { result = getName(teams, a.away_team_id).localeCompare(getName(teams, b.away_team_id)); }
-      else if (sortKey === "venue") { result = String(a.venue || "").localeCompare(String(b.venue || "")); }
-      else if (sortKey === "active") { result = Number(a.is_active !== false) - Number(b.is_active !== false); }
-      else if (sortKey === "status") { result = Number(Boolean(a.is_locked)) - Number(Boolean(b.is_locked)); }
+      if (sortKey === "round") result = getName(rounds, a.round_id).localeCompare(getName(rounds, b.round_id));
+      else if (sortKey === "division") result = getName(divisions, a.division_id).localeCompare(getName(divisions, b.division_id));
+      else if (sortKey === "home") result = getName(teams, a.home_team_id).localeCompare(getName(teams, b.home_team_id));
+      else if (sortKey === "away") result = getName(teams, a.away_team_id).localeCompare(getName(teams, b.away_team_id));
+      else if (sortKey === "venue") result = String(a.venue || "").localeCompare(String(b.venue || ""));
+      else if (sortKey === "active") result = Number(a.is_active !== false) - Number(b.is_active !== false);
+      else if (sortKey === "status") result = Number(Boolean(a.is_locked)) - Number(Boolean(b.is_locked));
       return sortDirection === "asc" ? result : -result;
     });
   }, [divisions, filterDivision, filterRound, filterStatus, fixtures, includeInactive, rounds, sortDirection, sortKey, teams]);
@@ -126,19 +146,24 @@ const ManageFixtures = () => {
   const handleAdd = async () => {
     if (!roundId || !divisionId || !homeTeamId) return;
     const realAwayId = fromSelectValue(awayTeamId);
-    if (realAwayId && homeTeamId === realAwayId) {
-      toast.error("Teams cannot be the same");
-      return;
-    }
+    if (realAwayId && homeTeamId === realAwayId) { toast.error("Teams cannot be the same"); return; }
     const { error } = await supabase.from("fixtures").insert({
       round_id: roundId,
       division_id: divisionId,
       home_team_id: homeTeamId,
       away_team_id: realAwayId,
-      venue: venue || null,
+      venue: fromVenueValue(venue),
+      pitch: fromVenueValue(pitch),
     });
     if (error) toast.error(error.message);
-    else { toast.success("Fixture added"); setOpen(false); setAwayTeamId(BYE_VALUE); fetchAll(); }
+    else {
+      toast.success("Fixture added");
+      setOpen(false);
+      setAwayTeamId(BYE_VALUE);
+      setVenue(NO_VENUE);
+      setPitch(NO_VENUE);
+      fetchAll();
+    }
   };
 
   const openEdit = (fixture: any) => {
@@ -147,7 +172,8 @@ const ManageFixtures = () => {
     setEditDivisionId(fixture.division_id || "");
     setEditHomeTeamId(fixture.home_team_id || "");
     setEditAwayTeamId(toSelectValue(fixture.away_team_id));
-    setEditVenue(fixture.venue || "");
+    setEditVenue(fixture.venue || NO_VENUE);
+    setEditPitch(fixture.pitch || NO_VENUE);
     setEditMatchDate(toDateTimeInputValue(fixture.match_date || null));
     setEditIsLocked(Boolean(fixture.is_locked));
     setEditIsActive(fixture.is_active !== false);
@@ -156,29 +182,21 @@ const ManageFixtures = () => {
 
   const handleSaveEdit = async () => {
     if (!editFixture) return;
-    if (!editRoundId || !editDivisionId || !editHomeTeamId) {
-      toast.error("Round, division, and home team are required");
-      return;
-    }
+    if (!editRoundId || !editDivisionId || !editHomeTeamId) { toast.error("Round, division, and home team are required"); return; }
     const realAwayId = fromSelectValue(editAwayTeamId);
-    if (realAwayId && editHomeTeamId === realAwayId) {
-      toast.error("Teams cannot be the same");
-      return;
-    }
+    if (realAwayId && editHomeTeamId === realAwayId) { toast.error("Teams cannot be the same"); return; }
     setSavingEdit(true);
-    const { error } = await supabase
-      .from("fixtures")
-      .update({
-        round_id: editRoundId,
-        division_id: editDivisionId,
-        home_team_id: editHomeTeamId,
-        away_team_id: realAwayId,
-        venue: editVenue.trim() || null,
-        match_date: fromDateTimeInputValue(editMatchDate),
-        is_locked: editIsLocked,
-        is_active: editIsActive,
-      })
-      .eq("id", editFixture.id);
+    const { error } = await supabase.from("fixtures").update({
+      round_id: editRoundId,
+      division_id: editDivisionId,
+      home_team_id: editHomeTeamId,
+      away_team_id: realAwayId,
+      venue: fromVenueValue(editVenue),
+      pitch: fromVenueValue(editPitch),
+      match_date: fromDateTimeInputValue(editMatchDate),
+      is_locked: editIsLocked,
+      is_active: editIsActive,
+    }).eq("id", editFixture.id);
     setSavingEdit(false);
     if (error) { toast.error(error.message); return; }
     toast.success("Fixture updated");
@@ -200,15 +218,7 @@ const ManageFixtures = () => {
             <Button variant="outline" size="sm" onClick={() => setShowImport(true)}>
               <Upload className="mr-1 h-4 w-4" /> Import Excel
             </Button>
-            <FixtureImport
-              open={showImport}
-              onClose={() => setShowImport(false)}
-              onImportComplete={fetchAll}
-              divisions={divisions}
-              teams={teams}
-              existingFixtures={fixtures}
-              existingRounds={rounds}
-            />
+            <FixtureImport open={showImport} onClose={() => setShowImport(false)} onImportComplete={fetchAll} divisions={divisions} teams={teams} existingFixtures={fixtures} existingRounds={rounds} />
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button size="sm"><Plus className="mr-1 h-4 w-4" /> Add Fixture</Button>
@@ -244,7 +254,24 @@ const ManageFixtures = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div><Label>Venue</Label><Input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Optional" /></div>
+                  <div><Label>Venue</Label>
+                    <Select value={venue} onValueChange={(v) => { setVenue(v); setPitch(NO_VENUE); }}>
+                      <SelectTrigger><SelectValue placeholder="Select venue (optional)" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NO_VENUE}>— No venue —</SelectItem>
+                        {venues.map(v => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Pitch <span className="text-muted-foreground text-xs">(sub-venue)</span></Label>
+                    <Select value={pitch} onValueChange={setPitch} disabled={venue === NO_VENUE}>
+                      <SelectTrigger><SelectValue placeholder={venue === NO_VENUE ? "Select venue first" : "Select pitch (optional)"} /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NO_VENUE}>— No pitch —</SelectItem>
+                        {pitchesForVenue(venue).map(p => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <Button onClick={handleAdd} className="w-full">Add Fixture</Button>
                 </div>
               </DialogContent>
@@ -252,7 +279,6 @@ const ManageFixtures = () => {
           </div>
         </div>
       </div>
-
       <div className="flex flex-wrap gap-3 mb-4">
         <Select value={filterRound} onValueChange={setFilterRound}>
           <SelectTrigger className="w-48"><SelectValue placeholder="All Rounds" /></SelectTrigger>
@@ -277,7 +303,6 @@ const ManageFixtures = () => {
           </SelectContent>
         </Select>
       </div>
-
       <Card><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
@@ -297,7 +322,7 @@ const ManageFixtures = () => {
                 <TableCell>{getName(divisions, f.division_id)}</TableCell>
                 <TableCell className="font-medium">{getName(teams, f.home_team_id)}</TableCell>
                 <TableCell className="font-medium">{f.away_team_id ? getName(teams, f.away_team_id) : "BYE"}</TableCell>
-                <TableCell>{f.venue || "—"}</TableCell>
+                <TableCell>{f.venue ? (f.pitch ? `${f.venue} — ${f.pitch}` : f.venue) : "—"}</TableCell>
                 <TableCell>
                   <Badge variant={f.is_active === false ? "secondary" : "default"} className={f.is_active === false ? "" : "bg-success"}>
                     {f.is_active === false ? "Inactive" : "Active"}
@@ -309,16 +334,13 @@ const ManageFixtures = () => {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(f)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(f)}><Pencil className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </CardContent></Card>
-
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Fixture</DialogTitle></DialogHeader>
@@ -330,7 +352,7 @@ const ManageFixtures = () => {
               </Select>
             </div>
             <div><Label>Division</Label>
-              <Select value={editDivisionId} onValueChange={(value) => { setEditDivisionId(value); }}>
+              <Select value={editDivisionId} onValueChange={setEditDivisionId}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>{divisions.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
               </Select>
@@ -351,8 +373,27 @@ const ManageFixtures = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Venue</Label><Input value={editVenue} onChange={(e) => setEditVenue(e.target.value)} placeholder="Optional" /></div>
-            <div><Label>Match Date & Time</Label><Input type="datetime-local" value={editMatchDate} onChange={(e) => setEditMatchDate(e.target.value)} /></div>
+            <div><Label>Venue</Label>
+              <Select value={editVenue} onValueChange={(v) => { setEditVenue(v); setEditPitch(NO_VENUE); }}>
+                <SelectTrigger><SelectValue placeholder="Select venue (optional)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_VENUE}>— No venue —</SelectItem>
+                  {venues.map(v => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Pitch <span className="text-muted-foreground text-xs">(sub-venue)</span></Label>
+              <Select value={editPitch} onValueChange={setEditPitch} disabled={editVenue === NO_VENUE}>
+                <SelectTrigger><SelectValue placeholder={editVenue === NO_VENUE ? "Select venue first" : "Select pitch (optional)"} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_VENUE}>— No pitch —</SelectItem>
+                  {pitchesForVenue(editVenue).map(p => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Match Date &amp; Time</Label>
+              <Input type="datetime-local" value={editMatchDate} onChange={(e) => setEditMatchDate(e.target.value)} />
+            </div>
             <div className="flex items-center justify-between border rounded-lg p-3">
               <Label htmlFor="edit-fixture-active">Active</Label>
               <Switch id="edit-fixture-active" checked={editIsActive} onCheckedChange={setEditIsActive} />
