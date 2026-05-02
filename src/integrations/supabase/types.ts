@@ -75,6 +75,7 @@ export type Database = {
           division_id: string
           home_team_id: string
           id: string
+          is_active: boolean
           is_locked: boolean
           match_date: string | null
           round_id: string
@@ -86,6 +87,7 @@ export type Database = {
           division_id: string
           home_team_id: string
           id?: string
+          is_active?: boolean
           is_locked?: boolean
           match_date?: string | null
           round_id: string
@@ -97,6 +99,7 @@ export type Database = {
           division_id?: string
           home_team_id?: string
           id?: string
+          is_active?: boolean
           is_locked?: boolean
           match_date?: string | null
           round_id?: string

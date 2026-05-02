@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -44,6 +45,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { UserPlus, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 
+type UserSortKey = "email" | "name" | "role" | "status" | "lastLogin";
+type SortDirection = "asc" | "desc";
+
 interface UserRow {
   userId: string;
   email: string;
@@ -69,9 +73,12 @@ interface SubmissionHistory {
 
 const ManageUsers = () => {
   const { isSuperAdmin } = useAuth();
-  
+
   const [users, setUsers] = useState<UserRow[]>([]);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const [includeInactive, setIncludeInactive] = useState(false);
+  const [sortKey, setSortKey] = useState<UserSortKey>("email");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   // Raw data for history
   const [rawSubmissions, setRawSubmissions] = useState<any[]>([]);
@@ -106,7 +113,8 @@ const ManageUsers = () => {
       { data: linesData },
       { data: roundsData },
       { data: divsData },
-      { data: teamsData }
+      { data: teamsData },
+      { data: allProfilesData }
     ] = await Promise.all([
       supabase.from("user_roles").select("*"),
       supabase.from("vote_submissions").select("*").eq("is_deleted", false).order("submitted_at", { ascending: false }),
@@ -114,6 +122,7 @@ const ManageUsers = () => {
       supabase.from("rounds").select("id, name"),
       supabase.from("divisions").select("id, name"),
       supabase.from("teams").select("id, name"),
+      supabase.from("profiles").select("user_id"),
     ]);
 
     setRawSubmissions(subsData || []);
@@ -131,11 +140,9 @@ const ManageUsers = () => {
       });
     }
 
-    if (subsData) {
-      subsData.forEach((s) => {
-        if (s.umpire_id && uuidRegex.test(s.umpire_id)) allIds.add(s.umpire_id);
-        if (s.proxy_submitter_id && uuidRegex.test(s.proxy_submitter_id)) allIds.add(s.proxy_submitter_id);
-        if (s.submitted_by_admin_id && uuidRegex.test(s.submitted_by_admin_id)) allIds.add(s.submitted_by_admin_id);
+    if (allProfilesData) {
+      allProfilesData.forEach((p) => {
+        if (p.user_id && uuidRegex.test(p.user_id)) allIds.add(p.user_id);
       });
     }
 
@@ -173,7 +180,7 @@ const ManageUsers = () => {
       const p = profilesData?.find((prof) => prof.user_id === uid);
       const auth = (authDetails as any[] || []).find((a) => a.id === uid);
       const userRoles = rolesData?.filter(r => r.user_id === uid).map(r => r.role) || [];
-      
+
       let mainRole = "umpire";
       if (userRoles.includes("super_admin")) mainRole = "super_admin";
       else if (userRoles.includes("admin")) mainRole = "admin";
@@ -206,7 +213,7 @@ const ManageUsers = () => {
   }, []);
 
   const getHistory = (userId: string): SubmissionHistory[] => {
-    const userSubs = rawSubmissions.filter((s) => 
+    const userSubs = rawSubmissions.filter((s) =>
       s.umpire_id === userId || s.proxy_submitter_id === userId || s.submitted_by_admin_id === userId
     );
 
@@ -259,13 +266,13 @@ const ManageUsers = () => {
   const handleSaveEdit = async () => {
     if (!editUser) return;
     setSaving(true);
-    
+
     // Update name
     const { error: profileErr } = await supabase
       .from("profiles")
       .update({ full_name: editName.trim() })
       .eq("user_id", editUser.userId);
-      
+
     if (profileErr) {
       toast.error(profileErr.message);
       setSaving(false);
@@ -333,13 +340,68 @@ const ManageUsers = () => {
     }
   };
 
+  const handleSort = (key: UserSortKey) => {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDirection("asc");
+  };
+
+  const renderSortHeader = (key: UserSortKey, label: string) => (
+    <button
+      type="button"
+      className="flex items-center gap-1 text-left font-medium text-muted-foreground transition-colors hover:text-foreground"
+      onClick={() => handleSort(key)}
+    >
+      <span>{label}</span>
+      {sortKey === key && (
+        sortDirection === "asc"
+          ? <ChevronUp className="h-3.5 w-3.5" />
+          : <ChevronDown className="h-3.5 w-3.5" />
+      )}
+    </button>
+  );
+
+  const displayedUsers = useMemo(() => {
+    const filtered = includeInactive ? users : users.filter((user) => !user.isDisabled);
+
+    return [...filtered].sort((a, b) => {
+      let result = 0;
+      if (sortKey === "email") {
+        result = (a.email || "").localeCompare(b.email || "");
+      } else if (sortKey === "name") {
+        result = (a.fullName || "").localeCompare(b.fullName || "");
+      } else if (sortKey === "role") {
+        result = (a.role || "").localeCompare(b.role || "");
+      } else if (sortKey === "status") {
+        result = Number(a.isDisabled) - Number(b.isDisabled);
+      } else if (sortKey === "lastLogin") {
+        result = new Date(a.lastSignIn || 0).getTime() - new Date(b.lastSignIn || 0).getTime();
+      }
+
+      return sortDirection === "asc" ? result : -result;
+    });
+  }, [includeInactive, sortDirection, sortKey, users]);
+
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Users</h1>
-        <Button onClick={() => setShowAddDialog(true)}>
-          <UserPlus className="mr-2 h-4 w-4" /> Add User
-        </Button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="include-inactive-users" className="text-sm font-medium">Include inactive</Label>
+            <Switch
+              id="include-inactive-users"
+              checked={includeInactive}
+              onCheckedChange={setIncludeInactive}
+            />
+          </div>
+          <Button onClick={() => setShowAddDialog(true)}>
+            <UserPlus className="mr-2 h-4 w-4" /> Add User
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -348,11 +410,11 @@ const ManageUsers = () => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[40px]"></TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last Login</TableHead>
+                <TableHead>{renderSortHeader("email", "Email")}</TableHead>
+                <TableHead>{renderSortHeader("name", "Name")}</TableHead>
+                <TableHead>{renderSortHeader("role", "Role")}</TableHead>
+                <TableHead>{renderSortHeader("status", "Status")}</TableHead>
+                <TableHead>{renderSortHeader("lastLogin", "Last Login")}</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -363,20 +425,20 @@ const ManageUsers = () => {
                     Loading users...
                   </TableCell>
                 </TableRow>
-              ) : users.length === 0 ? (
+              ) : displayedUsers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     No users found.
                   </TableCell>
                 </TableRow>
               ) : (
-                users.map((u) => {
+                displayedUsers.map((u) => {
                   const isExpanded = expandedUserId === u.userId;
                   const isSA = u.role === "super_admin";
 
                   return (
                     <React.Fragment key={u.userId}>
-                      <TableRow 
+                      <TableRow
                         className="cursor-pointer hover:bg-muted/50 transition-colors"
                         onClick={() => setExpandedUserId(isExpanded ? null : u.userId)}
                       >
@@ -407,9 +469,9 @@ const ManageUsers = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           {!isSA && (
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={(e) => handleEditClick(e, u)}
                             >
                               <Pencil className="h-4 w-4" />
@@ -417,7 +479,7 @@ const ManageUsers = () => {
                           )}
                         </TableCell>
                       </TableRow>
-                      
+
                       {isExpanded && (
                         <TableRow className="bg-muted/30">
                           <TableCell colSpan={7} className="p-4 border-b">
@@ -499,7 +561,7 @@ const ManageUsers = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <Button onClick={handleSaveEdit} disabled={saving} className="w-full">
                 {saving ? "Saving..." : "Save Changes"}
               </Button>

@@ -1,4 +1,4 @@
-import { useEffect, useState, Fragment } from "react";
+import { useEffect, useMemo, useState, Fragment } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Edit, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Edit, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
+
+type DivisionSortKey = "name" | "type" | "active";
+type SortDirection = "asc" | "desc";
 
 const ManageDivisions = () => {
   const [divisions, setDivisions] = useState<any[]>([]);
@@ -22,6 +25,9 @@ const ManageDivisions = () => {
 
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
+  const [includeInactive, setIncludeInactive] = useState(false);
+  const [sortKey, setSortKey] = useState<DivisionSortKey>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const resetForm = () => {
     setName("");
@@ -73,41 +79,91 @@ const ManageDivisions = () => {
     fetch();
   };
 
-  const filteredDivisions = divisions.filter(d => {
-    if (search && !d.name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filterType !== "all" && (d.division_type || "senior") !== filterType) return false;
-    return true;
-  });
+  const handleSort = (key: DivisionSortKey) => {
+    if (sortKey === key) {
+      setSortDirection(current => current === "asc" ? "desc" : "asc");
+      return;
+    }
+    setSortKey(key);
+    setSortDirection("asc");
+  };
+
+  const renderSortHeader = (key: DivisionSortKey, label: string) => (
+    <button
+      type="button"
+      className="flex items-center gap-1 text-left font-medium text-muted-foreground transition-colors hover:text-foreground"
+      onClick={() => handleSort(key)}
+    >
+      <span>{label}</span>
+      {sortKey === key && (
+        sortDirection === "asc"
+          ? <ChevronUp className="h-3.5 w-3.5" />
+          : <ChevronDown className="h-3.5 w-3.5" />
+      )}
+    </button>
+  );
+
+  const filteredDivisions = useMemo(() => {
+    const filtered = divisions.filter(d => {
+      if (!includeInactive && !d.is_active) return false;
+      if (search && !d.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (filterType !== "all" && (d.division_type || "senior") !== filterType) return false;
+      return true;
+    });
+
+    return [...filtered].sort((a, b) => {
+      let result = 0;
+      if (sortKey === "name") {
+        result = String(a.name || "").localeCompare(String(b.name || ""));
+      } else if (sortKey === "type") {
+        result = String(a.division_type || "senior").localeCompare(String(b.division_type || "senior"));
+      } else if (sortKey === "active") {
+        result = Number(Boolean(a.is_active)) - Number(Boolean(b.is_active));
+      }
+
+      return sortDirection === "asc" ? result : -result;
+    });
+  }, [divisions, filterType, includeInactive, search, sortDirection, sortKey]);
 
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Divisions</h1>
-        <Dialog open={open} onOpenChange={(val) => {
-          if (!val) resetForm();
-          setOpen(val);
-        }}>
-          <DialogTrigger asChild>
-            <Button size="sm"><Plus className="mr-1 h-4 w-4" /> Add Division</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>{editingId ? "Edit Division" : "Add Division"}</DialogTitle></DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Premier League" /></div>
-              <div className="space-y-2">
-                <Label>Division Type</Label>
-                <Select value={divisionType} onValueChange={setDivisionType}>
-                  <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="senior">Senior</SelectItem>
-                    <SelectItem value="junior">Junior</SelectItem>
-                  </SelectContent>
-                </Select>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="include-inactive-divisions" className="text-sm font-medium">Include inactive</Label>
+            <Switch
+              id="include-inactive-divisions"
+              checked={includeInactive}
+              onCheckedChange={setIncludeInactive}
+            />
+          </div>
+          <Dialog open={open} onOpenChange={(val) => {
+            if (!val) resetForm();
+            setOpen(val);
+          }}>
+            <DialogTrigger asChild>
+              <Button size="sm"><Plus className="mr-1 h-4 w-4" /> Add Division</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>{editingId ? "Edit Division" : "Add Division"}</DialogTitle></DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Premier League" /></div>
+                <div className="space-y-2">
+                  <Label>Division Type</Label>
+                  <Select value={divisionType} onValueChange={setDivisionType}>
+                    <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="senior">Senior</SelectItem>
+                      <SelectItem value="junior">Junior</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={handleSave} className="w-full">{editingId ? "Save Changes" : "Add Division"}</Button>
               </div>
-              <Button onClick={handleSave} className="w-full">{editingId ? "Save Changes" : "Add Division"}</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3 mb-4">
@@ -125,7 +181,7 @@ const ManageDivisions = () => {
       <Card><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
-            <TableHead>Name</TableHead><TableHead>Type</TableHead><TableHead>Active</TableHead><TableHead className="w-[80px]">Actions</TableHead>
+            <TableHead>{renderSortHeader("name", "Name")}</TableHead><TableHead>{renderSortHeader("type", "Type")}</TableHead><TableHead>{renderSortHeader("active", "Active")}</TableHead><TableHead className="w-[80px]">Actions</TableHead>
           </TableRow></TableHeader>
           <TableBody>
             {filteredDivisions.map((d) => (

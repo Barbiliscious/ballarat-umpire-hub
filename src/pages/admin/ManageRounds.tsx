@@ -12,6 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
+type RoundSortKey = "roundNumber" | "name" | "season" | "active";
+type SortDirection = "asc" | "desc";
+
 const ManageRounds = () => {
   const [rounds, setRounds] = useState<any[]>([]);
   const [fixtures, setFixtures] = useState<any[]>([]);
@@ -24,6 +27,9 @@ const ManageRounds = () => {
   const [searchName, setSearchName] = useState("");
   const [filterSeason, setFilterSeason] = useState("all");
   const [filterRound, setFilterRound] = useState("");
+  const [includeInactive, setIncludeInactive] = useState(false);
+  const [sortKey, setSortKey] = useState<RoundSortKey>("roundNumber");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   // Expandable row state
   const [expandedRoundId, setExpandedRoundId] = useState<string | null>(null);
@@ -94,13 +100,53 @@ const ManageRounds = () => {
   }, [rounds]);
 
   const filteredRounds = useMemo(() => {
-    return rounds.filter(r => {
+    const filtered = rounds.filter(r => {
+      if (!includeInactive && !r.is_active) return false;
       const matchSearch = searchName === "" || (r.name ?? '').toLowerCase().includes(searchName.toLowerCase());
       const matchSeason = filterSeason === "all" || String(r.season ?? '') === filterSeason;
       const matchRound = filterRound === "" || String(r.round_number ?? '') === filterRound;
       return matchSearch && matchSeason && matchRound;
     });
-  }, [rounds, searchName, filterSeason, filterRound]);
+
+    return [...filtered].sort((a, b) => {
+      let result = 0;
+      if (sortKey === "roundNumber") {
+        result = Number(a.round_number || 0) - Number(b.round_number || 0);
+      } else if (sortKey === "name") {
+        result = String(a.name || "").localeCompare(String(b.name || ""));
+      } else if (sortKey === "season") {
+        result = String(a.season || "").localeCompare(String(b.season || ""));
+      } else if (sortKey === "active") {
+        result = Number(Boolean(a.is_active)) - Number(Boolean(b.is_active));
+      }
+
+      return sortDirection === "asc" ? result : -result;
+    });
+  }, [includeInactive, rounds, searchName, filterSeason, filterRound, sortDirection, sortKey]);
+
+  const handleSort = (key: RoundSortKey) => {
+    if (sortKey === key) {
+      setSortDirection(current => current === "asc" ? "desc" : "asc");
+      return;
+    }
+    setSortKey(key);
+    setSortDirection("asc");
+  };
+
+  const renderSortHeader = (key: RoundSortKey, label: string) => (
+    <button
+      type="button"
+      className="flex items-center gap-1 text-left font-medium text-muted-foreground transition-colors hover:text-foreground"
+      onClick={() => handleSort(key)}
+    >
+      <span>{label}</span>
+      {sortKey === key && (
+        sortDirection === "asc"
+          ? <ChevronUp className="h-3.5 w-3.5" />
+          : <ChevronDown className="h-3.5 w-3.5" />
+      )}
+    </button>
+  );
 
   const openEdit = (r: any) => {
     setEditRound(r);
@@ -163,20 +209,30 @@ const ManageRounds = () => {
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Rounds</h1>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm"><Plus className="mr-1 h-4 w-4" /> Add Round</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Add Round</DialogTitle></DialogHeader>
-            <div className="space-y-3">
-              <div><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Round 1" /></div>
-              <div><Label>Round Number</Label><Input value={roundNumber} onChange={(e) => setRoundNumber(e.target.value)} type="number" /></div>
-              <div><Label>Season</Label><Input value={season} onChange={(e) => setSeason(e.target.value)} /></div>
-              <Button onClick={handleAdd} className="w-full">Add Round</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="include-inactive-rounds" className="text-sm font-medium">Include inactive</Label>
+            <Switch
+              id="include-inactive-rounds"
+              checked={includeInactive}
+              onCheckedChange={setIncludeInactive}
+            />
+          </div>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm"><Plus className="mr-1 h-4 w-4" /> Add Round</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Add Round</DialogTitle></DialogHeader>
+              <div className="space-y-3">
+                <div><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Round 1" /></div>
+                <div><Label>Round Number</Label><Input value={roundNumber} onChange={(e) => setRoundNumber(e.target.value)} type="number" /></div>
+                <div><Label>Season</Label><Input value={season} onChange={(e) => setSeason(e.target.value)} /></div>
+                <Button onClick={handleAdd} className="w-full">Add Round</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="flex gap-3 bg-muted/40 p-3 rounded-lg flex-wrap">
@@ -210,10 +266,10 @@ const ManageRounds = () => {
         <Table>
           <TableHeader><TableRow>
             <TableHead className="w-10"></TableHead>
-            <TableHead>#</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Season</TableHead>
-            <TableHead>Active</TableHead>
+            <TableHead>{renderSortHeader("roundNumber", "#")}</TableHead>
+            <TableHead>{renderSortHeader("name", "Name")}</TableHead>
+            <TableHead>{renderSortHeader("season", "Season")}</TableHead>
+            <TableHead>{renderSortHeader("active", "Active")}</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow></TableHeader>
           <TableBody>

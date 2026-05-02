@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,8 +13,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Search, Download, Lock, Unlock, CheckCircle, Trash2, Eye } from "lucide-react";
+import { Search, Download, Lock, Unlock, CheckCircle, Trash2, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
+
+type SubmissionSortKey = "round" | "division" | "umpire" | "match" | "submittedBy" | "status" | "submitted";
+type SortDirection = "asc" | "desc";
 
 interface Submission {
   id: string;
@@ -57,7 +60,9 @@ const Submissions = () => {
   const [filterRound, setFilterRound] = useState("all");
   const [filterDivision, setFilterDivision] = useState("all");
   const [search, setSearch] = useState("");
-  const [showDeleted, setShowDeleted] = useState(false);
+  const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [sortKey, setSortKey] = useState<SubmissionSortKey>("submitted");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const fetchAll = async () => {
     const subsRes = await supabase.from("vote_submissions").select("*").order("submitted_at", { ascending: false });
@@ -125,20 +130,84 @@ const Submissions = () => {
     return p ? p.email : s.umpire_id;
   };
 
-  const filtered = submissions.filter((s) => {
-    if (!showDeleted && s.is_deleted) return false;
-    if (showDeleted && !s.is_deleted) return false;
-    if (filterRound !== "all" && s.round_id !== filterRound) return false;
-    if (filterDivision !== "all" && s.division_id !== filterDivision) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      const umpire = getUmpireName(s).toLowerCase();
-      const homeTeam = getName(teams, s.home_team_id).toLowerCase();
-      const awayTeam = getName(teams, s.away_team_id).toLowerCase();
-      if (!umpire.includes(q) && !homeTeam.includes(q) && !awayTeam.includes(q)) return false;
+  const getSubmittedBy = (s: Submission) => {
+    const isAdminSubmitted = !!s.submitted_by_admin_id;
+    const isProxySubmitted = !!s.proxy_submitter_id && !s.submitted_by_admin_id;
+    if (!isProxySubmitted && !isAdminSubmitted) return "Self";
+    if (isAdminSubmitted) {
+      return profilesMap[s.submitted_by_admin_id!]?.email || s.submitted_by_admin_name || "Admin";
     }
-    return true;
-  });
+    return profilesMap[s.proxy_submitter_id!]?.email || s.proxy_submitter_name || "Proxy";
+  };
+
+  const formatSubmittedAt = (submittedAt: string) => (
+    submittedAt
+      ? new Date(submittedAt).toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" })
+      : "â€”"
+  );
+
+  const handleSort = (key: SubmissionSortKey) => {
+    if (sortKey === key) {
+      setSortDirection(current => current === "asc" ? "desc" : "asc");
+      return;
+    }
+    setSortKey(key);
+    setSortDirection(key === "submitted" ? "desc" : "asc");
+  };
+
+  const renderSortHeader = (key: SubmissionSortKey, label: string) => (
+    <button
+      type="button"
+      className="flex items-center gap-1 text-left font-medium text-muted-foreground transition-colors hover:text-foreground"
+      onClick={() => handleSort(key)}
+    >
+      <span>{label}</span>
+      {sortKey === key && (
+        sortDirection === "asc"
+          ? <ChevronUp className="h-3.5 w-3.5" />
+          : <ChevronDown className="h-3.5 w-3.5" />
+      )}
+    </button>
+  );
+
+  const filtered = useMemo(() => {
+    const filteredSubmissions = submissions.filter((s) => {
+      if (!includeDeleted && s.is_deleted) return false;
+      if (filterRound !== "all" && s.round_id !== filterRound) return false;
+      if (filterDivision !== "all" && s.division_id !== filterDivision) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        const umpire = getUmpireName(s).toLowerCase();
+        const homeTeam = getName(teams, s.home_team_id).toLowerCase();
+        const awayTeam = getName(teams, s.away_team_id).toLowerCase();
+        if (!umpire.includes(q) && !homeTeam.includes(q) && !awayTeam.includes(q)) return false;
+      }
+      return true;
+    });
+
+    return [...filteredSubmissions].sort((a, b) => {
+      let result = 0;
+      if (sortKey === "round") {
+        result = getName(rounds, a.round_id).localeCompare(getName(rounds, b.round_id));
+      } else if (sortKey === "division") {
+        result = getName(divisions, a.division_id).localeCompare(getName(divisions, b.division_id));
+      } else if (sortKey === "umpire") {
+        result = getUmpireName(a).localeCompare(getUmpireName(b));
+      } else if (sortKey === "match") {
+        const matchA = `${getName(teams, a.home_team_id)} vs ${getName(teams, a.away_team_id)}`;
+        const matchB = `${getName(teams, b.home_team_id)} vs ${getName(teams, b.away_team_id)}`;
+        result = matchA.localeCompare(matchB);
+      } else if (sortKey === "submittedBy") {
+        result = getSubmittedBy(a).localeCompare(getSubmittedBy(b));
+      } else if (sortKey === "status") {
+        result = Number(Boolean(a.is_approved)) - Number(Boolean(b.is_approved));
+      } else if (sortKey === "submitted") {
+        result = new Date(a.submitted_at || 0).getTime() - new Date(b.submitted_at || 0).getTime();
+      }
+
+      return sortDirection === "asc" ? result : -result;
+    });
+  }, [divisions, filterDivision, filterRound, includeDeleted, profilesMap, rounds, search, sortDirection, sortKey, submissions, teams]);
 
   const toggleLock = async (sub: Submission) => {
     const { error } = await supabase
@@ -208,7 +277,7 @@ const Submissions = () => {
           String(vl.player_number),
           getName(teams, vl.team_id),
           s.is_approved ? "Approved" : "Pending",
-          new Date(s.submitted_at).toLocaleDateString(),
+          formatSubmittedAt(s.submitted_at),
         ]);
       });
     });
@@ -226,9 +295,15 @@ const Submissions = () => {
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold">Submissions</h1>
-        <Button variant="outline" size="sm" onClick={exportCsv}>
-          <Download className="mr-1 h-4 w-4" /> Export CSV
-        </Button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="include-deleted-submissions" className="text-sm font-medium">Include deleted</Label>
+            <Switch id="include-deleted-submissions" checked={includeDeleted} onCheckedChange={setIncludeDeleted} />
+          </div>
+          <Button variant="outline" size="sm" onClick={exportCsv}>
+            <Download className="mr-1 h-4 w-4" /> Export CSV
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -251,10 +326,6 @@ const Submissions = () => {
             {divisions.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        <div className="flex items-center gap-2">
-          <Switch id="show-deleted" checked={showDeleted} onCheckedChange={setShowDeleted} />
-          <Label htmlFor="show-deleted" className="text-sm">Show Deleted</Label>
-        </div>
       </div>
 
       <Card>
@@ -262,20 +333,20 @@ const Submissions = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Round</TableHead>
-                <TableHead>Division</TableHead>
-                <TableHead>Umpire</TableHead>
-                <TableHead>Match</TableHead>
-                <TableHead>Submitted By</TableHead>
+                <TableHead>{renderSortHeader("round", "Round")}</TableHead>
+                <TableHead>{renderSortHeader("division", "Division")}</TableHead>
+                <TableHead>{renderSortHeader("umpire", "Umpire")}</TableHead>
+                <TableHead>{renderSortHeader("match", "Match")}</TableHead>
+                <TableHead>{renderSortHeader("submittedBy", "Submitted By")}</TableHead>
                 <TableHead>Votes</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Submitted</TableHead>
+                <TableHead>{renderSortHeader("status", "Status")}</TableHead>
+                <TableHead>{renderSortHeader("submitted", "Submitted")}</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No submissions found</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">No submissions found</TableCell></TableRow>
               )}
               {filtered.map((s) => {
                 const lines = voteLines.filter((vl) => vl.submission_id === s.id).sort((a, b) => b.votes - a.votes);
@@ -348,7 +419,7 @@ const Submissions = () => {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {s.submitted_at
-                        ? new Date(s.submitted_at).toLocaleDateString("en-AU")
+                        ? formatSubmittedAt(s.submitted_at)
                         : "—"}
                     </TableCell>
                     <TableCell className="text-right">

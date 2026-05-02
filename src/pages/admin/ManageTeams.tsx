@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Edit } from "lucide-react";
+import { Plus, Edit, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
+
+type TeamSortKey = "name" | "short" | "division" | "active";
+type SortDirection = "asc" | "desc";
 
 const ManageTeams = () => {
   const [teams, setTeams] = useState<any[]>([]);
@@ -22,7 +25,9 @@ const ManageTeams = () => {
 
   const [search, setSearch] = useState("");
   const [filterDivision, setFilterDivision] = useState("all");
-  const [filterActive, setFilterActive] = useState("all");
+  const [includeInactive, setIncludeInactive] = useState(false);
+  const [sortKey, setSortKey] = useState<TeamSortKey>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const resetForm = () => {
     setName("");
@@ -62,20 +67,69 @@ const ManageTeams = () => {
     fetchTeams();
   };
 
-  const filteredTeams = teams.filter(t => {
-    if (search && !t.name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filterDivision !== "all" && t.division_id !== filterDivision) return false;
-    if (filterActive !== "all") {
-      const wantsActive = filterActive === "active";
-      if (t.is_active !== wantsActive) return false;
+  const getDivisionName = (divisionId: string | null) => divisions.find(d => d.id === divisionId)?.name || "";
+
+  const handleSort = (key: TeamSortKey) => {
+    if (sortKey === key) {
+      setSortDirection(current => current === "asc" ? "desc" : "asc");
+      return;
     }
-    return true;
-  });
+    setSortKey(key);
+    setSortDirection("asc");
+  };
+
+  const renderSortHeader = (key: TeamSortKey, label: string) => (
+    <button
+      type="button"
+      className="flex items-center gap-1 text-left font-medium text-muted-foreground transition-colors hover:text-foreground"
+      onClick={() => handleSort(key)}
+    >
+      <span>{label}</span>
+      {sortKey === key && (
+        sortDirection === "asc"
+          ? <ChevronUp className="h-3.5 w-3.5" />
+          : <ChevronDown className="h-3.5 w-3.5" />
+      )}
+    </button>
+  );
+
+  const filteredTeams = useMemo(() => {
+    const filtered = teams.filter(t => {
+      if (!includeInactive && !t.is_active) return false;
+      if (search && !t.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (filterDivision !== "all" && t.division_id !== filterDivision) return false;
+      return true;
+    });
+
+    return [...filtered].sort((a, b) => {
+      let result = 0;
+      if (sortKey === "name") {
+        result = String(a.name || "").localeCompare(String(b.name || ""));
+      } else if (sortKey === "short") {
+        result = String(a.short_name || "").localeCompare(String(b.short_name || ""));
+      } else if (sortKey === "division") {
+        result = getDivisionName(a.division_id).localeCompare(getDivisionName(b.division_id));
+      } else if (sortKey === "active") {
+        result = Number(Boolean(a.is_active)) - Number(Boolean(b.is_active));
+      }
+
+      return sortDirection === "asc" ? result : -result;
+    });
+  }, [divisions, filterDivision, includeInactive, search, sortDirection, sortKey, teams]);
 
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Teams</h1>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="include-inactive-teams" className="text-sm font-medium">Include inactive</Label>
+            <Switch
+              id="include-inactive-teams"
+              checked={includeInactive}
+              onCheckedChange={setIncludeInactive}
+            />
+          </div>
         <Dialog open={open} onOpenChange={(val) => {
           if (!val) resetForm();
           setOpen(val);
@@ -106,6 +160,7 @@ const ManageTeams = () => {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3 mb-4">
@@ -117,20 +172,12 @@ const ManageTeams = () => {
             {divisions.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={filterActive} onValueChange={setFilterActive}>
-          <SelectTrigger className="w-48"><SelectValue placeholder="All Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       <Card><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
-            <TableHead>Name</TableHead><TableHead>Short</TableHead><TableHead>Division</TableHead><TableHead>Active</TableHead><TableHead className="w-[80px]">Actions</TableHead>
+            <TableHead>{renderSortHeader("name", "Name")}</TableHead><TableHead>{renderSortHeader("short", "Short")}</TableHead><TableHead>{renderSortHeader("division", "Division")}</TableHead><TableHead>{renderSortHeader("active", "Active")}</TableHead><TableHead className="w-[80px]">Actions</TableHead>
           </TableRow></TableHeader>
           <TableBody>
             {filteredTeams.map((t) => (
