@@ -57,6 +57,8 @@ interface UserRow {
   lastSignIn: string | null;
   createdAt: string | null;
   hasPassword: boolean;
+  isPlaceholder: boolean;
+  profileId: string | null; // the profiles.id for placeholder accounts
 }
 
 interface SubmissionHistory {
@@ -77,6 +79,7 @@ const ManageUsers = () => {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [showPlaceholders, setShowPlaceholders] = useState(false);
   const [sortKey, setSortKey] = useState<UserSortKey>("email");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
@@ -125,6 +128,12 @@ const ManageUsers = () => {
       supabase.from("profiles").select("user_id"),
     ]);
 
+    const { data: placeholderProfiles } = await supabase
+      .from("profiles")
+      .select("id, user_id, full_name, email, is_placeholder, is_disabled")
+      .eq("is_placeholder", true)
+      .eq("is_disabled", false);
+
     setRawSubmissions(subsData || []);
     setRawLines(linesData || []);
     setRounds(roundsData || []);
@@ -147,9 +156,21 @@ const ManageUsers = () => {
     }
 
     const uniqueIds = Array.from(allIds);
+    const placeholderRows: UserRow[] = (placeholderProfiles || []).map((p) => ({
+      userId: p.user_id || p.id,
+      email: p.email || "—",
+      fullName: p.full_name,
+      role: "umpire",
+      isDisabled: false,
+      lastSignIn: null,
+      createdAt: null,
+      hasPassword: false,
+      isPlaceholder: true,
+      profileId: p.id,
+    }));
 
     if (uniqueIds.length === 0) {
-      setUsers([]);
+      setUsers(placeholderRows);
       setLoading(false);
       return;
     }
@@ -195,6 +216,8 @@ const ManageUsers = () => {
         lastSignIn: auth?.last_sign_in_at || null,
         createdAt: auth?.created_at || p?.created_at || new Date().toISOString(),
         hasPassword: auth?.has_password || false,
+        isPlaceholder: false,
+        profileId: null,
       };
     });
 
@@ -204,7 +227,7 @@ const ManageUsers = () => {
       return a.email.localeCompare(b.email);
     });
 
-    setUsers(merged);
+    setUsers([...merged.map(u => ({ ...u, isPlaceholder: false, profileId: null })), ...placeholderRows]);
     setLoading(false);
   };
 
@@ -365,7 +388,11 @@ const ManageUsers = () => {
   );
 
   const displayedUsers = useMemo(() => {
-    const filtered = includeInactive ? users : users.filter((user) => !user.isDisabled);
+    const filtered = users.filter((user) => {
+      if (showPlaceholders) return user.isPlaceholder;
+      if (!includeInactive && user.isDisabled) return false;
+      return !user.isPlaceholder;
+    });
 
     return [...filtered].sort((a, b) => {
       let result = 0;
@@ -383,7 +410,7 @@ const ManageUsers = () => {
 
       return sortDirection === "asc" ? result : -result;
     });
-  }, [includeInactive, sortDirection, sortKey, users]);
+  }, [includeInactive, showPlaceholders, sortDirection, sortKey, users]);
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -397,6 +424,10 @@ const ManageUsers = () => {
               checked={includeInactive}
               onCheckedChange={setIncludeInactive}
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="show-placeholders" className="text-sm font-medium">Show Placeholders</Label>
+            <Switch id="show-placeholders" checked={showPlaceholders} onCheckedChange={setShowPlaceholders} />
           </div>
           <Button onClick={() => setShowAddDialog(true)}>
             <UserPlus className="mr-2 h-4 w-4" /> Add User
@@ -463,12 +494,15 @@ const ManageUsers = () => {
                           ) : (
                             <Badge className="bg-green-500 hover:bg-green-600 text-white">Active</Badge>
                           )}
+                          {u.isPlaceholder && <Badge variant="outline" className="border-orange-400 text-orange-500">Placeholder</Badge>}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {u.lastSignIn ? new Date(u.lastSignIn).toLocaleDateString("en-AU") : "—"}
+                          {u.isPlaceholder ? "—" : u.lastSignIn
+                            ? new Date(u.lastSignIn).toLocaleString("en-AU", { dateStyle: "short", timeStyle: "short" })
+                            : "Never"}
                         </TableCell>
                         <TableCell className="text-right">
-                          {!isSA && (
+                          {!isSA && !u.isPlaceholder && (
                             <Button
                               variant="ghost"
                               size="icon"
