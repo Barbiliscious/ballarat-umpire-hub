@@ -106,6 +106,9 @@ const ManageUsers = () => {
   const [addEmail, setAddEmail] = useState("");
   const [addRole, setAddRole] = useState("umpire");
   const [adding, setAdding] = useState(false);
+  const [mergeSource, setMergeSource] = useState<UserRow | null>(null);
+  const [mergeTargetId, setMergeTargetId] = useState("");
+  const [merging, setMerging] = useState(false);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -363,6 +366,45 @@ const ManageUsers = () => {
     }
   };
 
+  const handleMerge = async () => {
+    if (!mergeSource || !mergeTargetId) return;
+    setMerging(true);
+
+    // Update all vote_submissions where proxy_umpire_name matches the placeholder name
+    const { error: subErr } = await supabase
+      .from("vote_submissions")
+      .update({ umpire_id: mergeTargetId })
+      .eq("proxy_umpire_name", mergeSource.fullName || "")
+      .is("umpire_id", null);
+
+    if (subErr) {
+      toast.error("Failed to reassign votes: " + subErr.message);
+      setMerging(false);
+      return;
+    }
+
+    // Mark the placeholder profile as merged and disable it
+    const { error: profileErr } = await supabase
+      .from("profiles")
+      .update({
+        merged_into_user_id: mergeTargetId,
+        is_disabled: true,
+      })
+      .eq("id", mergeSource.profileId || "");
+
+    if (profileErr) {
+      toast.error("Failed to update placeholder: " + profileErr.message);
+      setMerging(false);
+      return;
+    }
+
+    toast.success(`Votes merged into selected account successfully`);
+    setMergeSource(null);
+    setMergeTargetId("");
+    setMerging(false);
+    fetchAll();
+  };
+
   const handleSort = (key: UserSortKey) => {
     if (sortKey === key) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
@@ -489,12 +531,14 @@ const ManageUsers = () => {
                           {!["super_admin", "admin", "umpire"].includes(u.role) && <Badge variant="secondary" className="bg-slate-100 text-slate-500">No Role</Badge>}
                         </TableCell>
                         <TableCell>
-                          {u.isDisabled ? (
-                            <Badge variant="destructive">Blocked</Badge>
-                          ) : (
-                            <Badge className="bg-green-500 hover:bg-green-600 text-white">Active</Badge>
+                          {!u.isPlaceholder && (
+                            u.isDisabled
+                              ? <Badge variant="destructive">Blocked</Badge>
+                              : <Badge className="bg-green-500 hover:bg-green-600 text-white">Active</Badge>
                           )}
-                          {u.isPlaceholder && <Badge variant="outline" className="border-orange-400 text-orange-500">Placeholder</Badge>}
+                          {u.isPlaceholder && (
+                            <Badge variant="outline" className="border-orange-400 text-orange-500">Placeholder</Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {u.isPlaceholder ? "—" : u.lastSignIn
@@ -509,6 +553,20 @@ const ManageUsers = () => {
                               onClick={(e) => handleEditClick(e, u)}
                             >
                               <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {u.isPlaceholder && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-orange-600 border-orange-400 hover:bg-orange-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMergeSource(u);
+                                setMergeTargetId("");
+                              }}
+                            >
+                              Merge
                             </Button>
                           )}
                         </TableCell>
@@ -676,6 +734,57 @@ const ManageUsers = () => {
             <Button onClick={handleInvite} disabled={adding} className="w-full">
               {adding ? "Sending..." : "Send Invite"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!mergeSource} onOpenChange={(open) => !open && setMergeSource(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Merge Placeholder: {mergeSource?.fullName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Select the real account to merge this placeholder into. All votes recorded
+              under <strong>{mergeSource?.fullName}</strong> will be transferred to the
+              selected account. The placeholder will then be hidden.
+            </p>
+            <div className="space-y-2">
+              <Label>Merge into</Label>
+              <Select value={mergeTargetId} onValueChange={setMergeTargetId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select real account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users
+                    .filter((u) => !u.isPlaceholder && !u.isDisabled)
+                    .map((u) => (
+                      <SelectItem key={u.userId} value={u.userId}>
+                        {u.fullName
+                          ? `${u.fullName} (${u.email})`
+                          : u.email}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setMergeSource(null)}
+                disabled={merging}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                onClick={handleMerge}
+                disabled={!mergeTargetId || merging}
+              >
+                {merging ? "Merging..." : "Confirm Merge"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
