@@ -17,7 +17,6 @@ interface Round { id: string; name: string; round_number: number; }
 interface Division { id: string; name: string; division_type?: string; }
 interface Team { id: string; name: string; short_name: string | null; }
 interface Fixture { id: string; home_team_id: string; away_team_id: string; venue: string | null; match_date: string | null; }
-interface UmpireProfile { user_id: string; full_name: string | null; email: string; }
 
 interface VoteLine {
   votes: number;
@@ -77,10 +76,8 @@ const UmpireVote = () => {
 
   // Proxy state
   const [isProxy, setIsProxy] = useState(false);
-  const [proxyUmpireId, setProxyUmpireId] = useState("");
+  const [proxyUmpireName, setProxyUmpireName] = useState("");
   const [proxyReason, setProxyReason] = useState("");
-  const [umpireProfiles, setUmpireProfiles] = useState<UmpireProfile[]>([]);
-  const [selectedProxyName, setSelectedProxyName] = useState("");
 
   const isCustomMode = selectedRound === CUSTOM_ROUND;
 
@@ -120,19 +117,6 @@ const UmpireVote = () => {
         setProfileLoading(false);
       });
   }, [user]);
-
-  // Load umpire profiles for proxy dropdown
-  useEffect(() => {
-    if (!user || !isProxy) return;
-    supabase
-      .from("profiles")
-      .select("user_id, full_name, email")
-      .eq("role", "umpire")
-      .neq("user_id", user.id)
-      .then(({ data }) => {
-        if (data) setUmpireProfiles(data);
-      });
-  }, [user, isProxy]);
 
   const handleSaveName = async () => {
     if (!umpireName.trim()) {
@@ -258,7 +242,7 @@ const UmpireVote = () => {
 
     // Proxy validation
     if (isProxy) {
-      if (!proxyUmpireId) errs.push("You must select the umpire you are submitting for");
+      if (!proxyUmpireName.trim()) errs.push("You must enter the umpire's name you are submitting for");
       if (!proxyReason.trim()) errs.push("A reason is required when submitting on behalf of another umpire");
     }
 
@@ -309,7 +293,7 @@ const UmpireVote = () => {
 
     const submissionData: any = {
       fixture_id: finalFixtureId,
-      umpire_id: isProxy ? proxyUmpireId : user!.id,
+      umpire_id: user!.id,
       round_id: isCustomMode ? null : selectedRound,
       division_id: isCustomMode ? null : selectedDivision,
       home_team_id: isCustomMode ? null : homeTeam,
@@ -327,6 +311,7 @@ const UmpireVote = () => {
     if (isProxy) {
       submissionData.proxy_submitter_id = user!.id;
       submissionData.proxy_submitter_name = myFullName || user!.email;
+      submissionData.proxy_umpire_name = proxyUmpireName.trim();
       submissionData.proxy_reason = proxyReason.trim();
     }
 
@@ -439,7 +424,7 @@ const UmpireVote = () => {
               <h2 className="text-2xl font-bold">Votes Submitted</h2>
               {isProxy && (
                 <div className="text-sm text-muted-foreground">
-                  <p className="font-medium">Vote submitted on behalf of {selectedProxyName}</p>
+                  <p className="font-medium">Vote submitted on behalf of {proxyUmpireName}</p>
                   <p className="italic mt-1">{proxyReason}</p>
                 </div>
               )}
@@ -458,7 +443,7 @@ const UmpireVote = () => {
                 ))}
               </div>
               <div className="space-y-2">
-                <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(seniorVotes))); setSelectedFixture(""); setIsProxy(false); setProxyUmpireId(""); setProxyReason(""); setCustomRoundName(""); setCustomDivision(""); setCustomDivisionType("senior"); setCustomHomeTeam(""); setCustomAwayTeam(""); }} className="w-full">
+                <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(seniorVotes))); setSelectedFixture(""); setIsProxy(false); setProxyUmpireName(""); setProxyReason(""); setCustomRoundName(""); setCustomDivision(""); setCustomDivisionType("senior"); setCustomHomeTeam(""); setCustomAwayTeam(""); }} className="w-full">
                   Submit another vote
                 </Button>
                 <Button variant="outline" onClick={() => navigate("/umpire/history")} className="w-full">
@@ -555,26 +540,12 @@ const UmpireVote = () => {
               {isProxy && (
                 <>
                   <div className="space-y-2">
-                    <Label>Select umpire you are submitting for</Label>
-                    <Select
-                      value={proxyUmpireId}
-                      onValueChange={(value) => {
-                        setProxyUmpireId(value);
-                        const selected = umpireProfiles.find((profile) => profile.user_id === value);
-                        setSelectedProxyName(selected?.full_name || selected?.email || "");
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select umpire" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {umpireProfiles.map((profile) => (
-                          <SelectItem key={profile.user_id} value={profile.user_id}>
-                            {profile.full_name || profile.email}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label>Umpire name</Label>
+                    <Input
+                      placeholder="Enter umpire's full name"
+                      value={proxyUmpireName}
+                      onChange={(e) => setProxyUmpireName(e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Reason for submitting on behalf *</Label>
@@ -834,7 +805,7 @@ const UmpireVote = () => {
               {isProxy && (
                 <div className="p-3 rounded-lg border border-purple-300 bg-purple-50 dark:bg-purple-950/20 dark:border-purple-800">
                   <p className="text-sm font-medium text-purple-700 dark:text-purple-300">
-                    Submitting on behalf of: {selectedProxyName}
+                    Submitting on behalf of: {proxyUmpireName}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1 italic">{proxyReason}</p>
                 </div>
