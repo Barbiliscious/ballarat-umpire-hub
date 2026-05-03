@@ -53,6 +53,7 @@ interface UserRow {
   email: string;
   fullName: string | null;
   role: string;
+  roles: string[];
   isDisabled: boolean;
   lastSignIn: string | null;
   createdAt: string | null;
@@ -97,6 +98,7 @@ const ManageUsers = () => {
   const [editUser, setEditUser] = useState<UserRow | null>(null);
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState("");
+  const [editRoles, setEditRoles] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [togglingDisable, setTogglingDisable] = useState<string | null>(null);
 
@@ -164,6 +166,7 @@ const ManageUsers = () => {
       email: p.email || "—",
       fullName: p.full_name,
       role: "umpire",
+      roles: [],
       isDisabled: false,
       lastSignIn: null,
       createdAt: null,
@@ -215,6 +218,7 @@ const ManageUsers = () => {
         email: auth?.email || p?.email || "No email",
         fullName: p?.full_name || null,
         role: userRoles.length > 0 ? mainRole : "umpire",
+        roles: userRoles.length > 0 ? userRoles : ["umpire"],
         isDisabled: p?.is_disabled || false,
         lastSignIn: auth?.last_sign_in_at || null,
         createdAt: auth?.created_at || p?.created_at || new Date().toISOString(),
@@ -286,7 +290,7 @@ const ManageUsers = () => {
     if (u.role === "super_admin" && !isSuperAdmin) return;
     setEditUser(u);
     setEditName(u.fullName || "");
-    setEditRole(u.role);
+    setEditRoles(u.roles.filter(r => r !== "super_admin"));
   };
 
   const handleSaveEdit = async () => {
@@ -305,15 +309,22 @@ const ManageUsers = () => {
       return;
     }
 
-    // Update role if changed
-    if (editRole !== editUser.role) {
-      const { data, error } = await supabase.functions.invoke("admin-manage-users", {
-        body: { action: "update_role", user_id: editUser.userId, role: editRole }
-      });
-      if (error || data?.error) {
-        toast.error(data?.error || error?.message || "Failed to update role");
-        setSaving(false);
-        return;
+    if (editUser.role !== "super_admin") {
+      const currentRoles = editUser.roles.filter(r => r !== "super_admin");
+      const toAdd = editRoles.filter(r => !currentRoles.includes(r));
+      const toRemove = currentRoles.filter(r => !editRoles.includes(r));
+
+      for (const role of toRemove) {
+        await supabase.from("user_roles").delete()
+          .eq("user_id", editUser.userId)
+          .eq("role", role);
+      }
+
+      for (const role of toAdd) {
+        await supabase.from("user_roles").insert({
+          user_id: editUser.userId,
+          role: role,
+        });
       }
     }
 
@@ -525,10 +536,12 @@ const ManageUsers = () => {
                           </span>
                         </TableCell>
                         <TableCell>
-                          {u.role === "super_admin" && <Badge className="bg-amber-500 hover:bg-amber-600 text-white">Super Admin</Badge>}
-                          {u.role === "admin" && <Badge className="bg-blue-500 hover:bg-blue-600 text-white">Admin</Badge>}
-                          {u.role === "umpire" && <Badge variant="secondary">Umpire</Badge>}
-                          {!["super_admin", "admin", "umpire"].includes(u.role) && <Badge variant="secondary" className="bg-slate-100 text-slate-500">No Role</Badge>}
+                          <div className="flex flex-wrap gap-1">
+                            {u.roles.includes("super_admin") && <Badge className="bg-amber-500 hover:bg-amber-600 text-white">Super Admin</Badge>}
+                            {u.roles.includes("admin") && <Badge className="bg-blue-500 hover:bg-blue-600 text-white">Admin</Badge>}
+                            {u.roles.includes("umpire") && <Badge variant="secondary">Umpire</Badge>}
+                            {u.roles.length === 0 && <Badge variant="secondary" className="bg-slate-100 text-slate-500">No Role</Badge>}
+                          </div>
                         </TableCell>
                         <TableCell>
                           {!u.isPlaceholder && (
@@ -642,16 +655,31 @@ const ManageUsers = () => {
                 <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="User's full name" />
               </div>
               <div className="space-y-2">
-                <Label>Role</Label>
-                <Select value={editRole} onValueChange={setEditRole} disabled={editUser.role === "super_admin"}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="umpire">Umpire</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Roles</Label>
+                {editUser.role === "super_admin" ? (
+                  <p className="text-sm text-muted-foreground italic">Super Admin — role cannot be changed here</p>
+                ) : (
+                  <div className="space-y-2">
+                    {["umpire", "admin"].map((r) => (
+                      <div key={r} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id={`role-${r}`}
+                          checked={editRoles.includes(r)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditRoles((prev) => [...prev, r]);
+                            } else {
+                              setEditRoles((prev) => prev.filter((x) => x !== r));
+                            }
+                          }}
+                          className="h-4 w-4"
+                        />
+                        <label htmlFor={`role-${r}`} className="text-sm capitalize cursor-pointer">{r}</label>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <Button onClick={handleSaveEdit} disabled={saving} className="w-full">
