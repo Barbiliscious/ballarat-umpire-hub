@@ -9,9 +9,14 @@ import { FileText, Users, Trophy, Calendar, Clock, CheckCircle } from "lucide-re
 interface PendingSubmission {
   id: string;
   submitted_at: string;
-  round_id: string;
-  division_id: string;
+  round_id: string | null;
+  division_id: string | null;
   umpire_id: string;
+  custom_round: string | null;
+  custom_division: string | null;
+  proxy_umpire_name: string | null;
+  submitted_by_admin_id: string | null;
+  proxy_submitter_id: string | null;
 }
 
 const Dashboard = () => {
@@ -33,7 +38,7 @@ const Dashboard = () => {
           supabase.from("teams").select("id", { count: "exact", head: true }),
           supabase.from("rounds").select("id", { count: "exact", head: true }),
           supabase.from("vote_submissions")
-            .select("id, submitted_at, round_id, division_id, umpire_id")
+            .select("id, submitted_at, round_id, division_id, umpire_id, custom_round, custom_division, proxy_umpire_name, submitted_by_admin_id, proxy_submitter_id")
             .eq("is_deleted", false)
             .eq("is_approved", false)
             .order("submitted_at", { ascending: false })
@@ -102,9 +107,12 @@ const Dashboard = () => {
   }, []);
 
   const getName = (list: { id: string; name: string }[], id: string) => list.find((i) => i.id === id)?.name || "—";
-  const getUmpire = (uid: string) => {
-    const p = profilesMap[uid];
-    return p?.full_name || p?.email || uid.slice(0, 8);
+  const getUmpire = (s: PendingSubmission) => {
+    if (s.submitted_by_admin_id || s.proxy_submitter_id) {
+      return s.proxy_umpire_name || "Unknown";
+    }
+    const p = profilesMap[s.umpire_id];
+    return p?.full_name || p?.email || s.umpire_id.slice(0, 8);
   };
 
   const cards = [
@@ -149,9 +157,9 @@ const Dashboard = () => {
               {pendingSubs.map((s) => (
                 <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
-                    <Badge variant="secondary">{getName(rounds, s.round_id)}</Badge>
-                    <span className="text-sm font-medium">{getName(divisions, s.division_id)}</span>
-                    <span className="text-sm text-muted-foreground">{getUmpire(s.umpire_id)}</span>
+                    <Badge variant="secondary">{s.round_id ? getName(rounds, s.round_id) : (s.custom_round || "—")}</Badge>
+                    <span className="text-sm font-medium">{s.division_id ? getName(divisions, s.division_id) : (s.custom_division || "—")}</span>
+                    <span className="text-sm text-muted-foreground">{getUmpire(s)}</span>
                     <span className="text-xs text-muted-foreground">{new Date(s.submitted_at).toLocaleDateString("en-AU")}</span>
                   </div>
                   <Button variant="outline" size="sm" onClick={() => navigate("/admin/submissions")}>
