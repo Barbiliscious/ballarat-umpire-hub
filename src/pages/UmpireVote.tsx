@@ -556,15 +556,25 @@ const UmpireVote = () => {
                 <>
                   <div className="space-y-2">
                     <Label>Select umpire you are submitting for</Label>
-                    <Input 
-                      type="text"
-                      placeholder="Type umpire's name"
+                    <Select
                       value={proxyUmpireId}
-                      onChange={(e) => {
-                        setProxyUmpireId(e.target.value);
-                        setSelectedProxyName(e.target.value);
+                      onValueChange={(value) => {
+                        setProxyUmpireId(value);
+                        const selected = umpireProfiles.find((profile) => profile.user_id === value);
+                        setSelectedProxyName(selected?.full_name || selected?.email || "");
                       }}
-                    />
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select umpire" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {umpireProfiles.map((profile) => (
+                          <SelectItem key={profile.user_id} value={profile.user_id}>
+                            {profile.full_name || profile.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Reason for submitting on behalf *</Label>
