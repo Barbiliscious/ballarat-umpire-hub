@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -94,6 +94,16 @@ const Submissions = () => {
   const [editCustomAwayTeam, setEditCustomAwayTeam] = useState("");
   const [editLines, setEditLines] = useState<EditableLine[]>([]);
   const [approveSaving, setApproveSaving] = useState(false);
+
+  // All unique player names from all historical vote submissions, for autocomplete
+  const allPlayerNames = useMemo(() => {
+    const names = new Set<string>();
+    voteLines.forEach(vl => { if (vl.player_name) names.add(vl.player_name); });
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [voteLines]);
+
+  // Which player name input (by editLines index) currently has suggestions showing
+  const [activeSuggestionLine, setActiveSuggestionLine] = useState<number | null>(null);
 
   const fetchAll = async () => {
     const subsRes = await supabase.from("vote_submissions").select("*").order("submitted_at", { ascending: false });
@@ -325,7 +335,17 @@ const Submissions = () => {
                       </TableCell>
                       <TableCell>
                         <div className="space-y-0.5">
-                          {lines.map((vl) => (<div key={vl.id} className="text-xs"><span className="font-semibold">{vl.votes}:</span> {vl.player_name} #{vl.player_number}</div>))}
+                          {lines.map((vl) => (
+                            <div key={vl.id} className="text-xs">
+                              <span className="font-semibold">{vl.votes}:</span>{" "}
+                              {vl.player_name} #{vl.player_number}
+                              {(vl.team_id ? getName(teams, vl.team_id) : (vl as any).custom_team) && (
+                                <span className="text-muted-foreground ml-1">
+                                  · {vl.team_id ? getName(teams, vl.team_id) : (vl as any).custom_team}
+                                </span>
+                              )}
+                            </div>
+                          ))}
                           {subEdits.length > 0 && (
                             <button className="mt-1 text-xs text-blue-500 hover:underline flex items-center gap-1" onClick={(e) => { e.stopPropagation(); setExpandedEditHistory(isEditExpanded ? null : s.id); }}>
                               {isEditExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
@@ -455,7 +475,46 @@ const Submissions = () => {
                       {editLines.map((line, i) => (
                         <div key={line.id} className="flex items-center gap-2">
                           <span className="w-10 text-sm font-bold text-primary shrink-0">{line.votes}pts</span>
-                          <Input value={line.player_name} onChange={e => setEditLines(prev => prev.map((l, idx) => idx === i ? { ...l, player_name: e.target.value } : l))} placeholder="Player name" className="flex-1" />
+                          <div className="relative flex-1">
+                            {/* Player name input with autocomplete */}
+                            <Input
+                              value={line.player_name}
+                              onChange={e => {
+                                setEditLines(prev => prev.map((l, idx) => idx === i ? { ...l, player_name: e.target.value } : l));
+                                setActiveSuggestionLine(i);
+                              }}
+                              onFocus={() => setActiveSuggestionLine(i)}
+                              onBlur={() => setTimeout(() => setActiveSuggestionLine(null), 150)}
+                              placeholder="Player name"
+                              className="w-full"
+                              autoComplete="off"
+                            />
+                            {/* Dropdown suggestions */}
+                            {activeSuggestionLine === i && line.player_name.length > 0 && (() => {
+                              const matches = allPlayerNames.filter(name =>
+                                name.toLowerCase().includes(line.player_name.toLowerCase()) &&
+                                name.toLowerCase() !== line.player_name.toLowerCase()
+                              ).slice(0, 6);
+                              if (matches.length === 0) return null;
+                              return (
+                                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-md overflow-hidden">
+                                  {matches.map(name => (
+                                    <button
+                                      key={name}
+                                      type="button"
+                                      className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                                      onMouseDown={() => {
+                                        setEditLines(prev => prev.map((l, idx) => idx === i ? { ...l, player_name: name } : l));
+                                        setActiveSuggestionLine(null);
+                                      }}
+                                    >
+                                      {name}
+                                    </button>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
                           <Input value={String(line.player_number)} onChange={e => setEditLines(prev => prev.map((l, idx) => idx === i ? { ...l, player_number: Number(e.target.value) } : l))} placeholder="#" className="w-20" type="number" />
                         </div>
                       ))}
