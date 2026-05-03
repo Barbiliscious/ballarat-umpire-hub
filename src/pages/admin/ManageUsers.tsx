@@ -323,9 +323,13 @@ const ManageUsers = () => {
       for (const role of toAdd) {
         await supabase.from("user_roles").insert({
           user_id: editUser.userId,
-          role: role,
+          role,
         });
       }
+
+      // Keep profiles.role in sync so the umpire dropdown filter works correctly
+      const profileRole = editRoles.includes("umpire") ? "umpire" : (editRoles.includes("admin") ? "admin" : "umpire");
+      await supabase.from("profiles").update({ role: profileRole }).eq("user_id", editUser.userId);
     }
 
     toast.success("User updated");
@@ -673,7 +677,7 @@ const ManageUsers = () => {
                               setEditRoles((prev) => prev.filter((x) => x !== r));
                             }
                           }}
-                          className="h-4 w-4"
+                          className="h-4 w-4 cursor-pointer"
                         />
                         <label htmlFor={`role-${r}`} className="text-sm capitalize cursor-pointer">{r}</label>
                       </div>
