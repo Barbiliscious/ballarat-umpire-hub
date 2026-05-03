@@ -58,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleSignOut = useCallback(async () => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     await supabase.auth.signOut();
+    window.location.href = "/";
   }, []);
 
   // Admin inactivity timeout
@@ -72,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       timeoutRef.current = setTimeout(() => {
         toast.info("You have been signed out due to inactivity.");
         handleSignOut().then(() => {
-          window.location.href = "/admin/login";
+          window.location.href = "/";
         });
       }, ADMIN_TIMEOUT_MS);
     };
