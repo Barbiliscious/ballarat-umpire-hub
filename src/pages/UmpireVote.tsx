@@ -27,6 +27,8 @@ interface VoteLine {
   teamId: string;
 }
 
+const CUSTOM_ROUND = "__custom__";
+
 const seniorVotes: VoteLine[] = [
   { votes: 3, label: "Best on Ground", playerName: "", playerNumber: "", teamId: "" },
   { votes: 2, label: "Second Best", playerName: "", playerNumber: "", teamId: "" },
@@ -53,6 +55,10 @@ const UmpireVote = () => {
   const [selectedRound, setSelectedRound] = useState("");
   const [selectedDivision, setSelectedDivision] = useState("");
   const [selectedFixture, setSelectedFixture] = useState("");
+  const [customRoundName, setCustomRoundName] = useState("");
+  const [customDivision, setCustomDivision] = useState("");
+  const [customHomeTeam, setCustomHomeTeam] = useState("");
+  const [customAwayTeam, setCustomAwayTeam] = useState("");
   const [manualMode, setManualMode] = useState(false);
   const [homeTeam, setHomeTeam] = useState("");
   const [awayTeam, setAwayTeam] = useState("");
@@ -74,6 +80,8 @@ const UmpireVote = () => {
   const [proxyReason, setProxyReason] = useState("");
   const [umpireProfiles, setUmpireProfiles] = useState<UmpireProfile[]>([]);
   const [selectedProxyName, setSelectedProxyName] = useState("");
+
+  const isCustomMode = selectedRound === CUSTOM_ROUND;
 
   // Build a map of teamId → divisionId[] from the team_divisions table
   const teamDivisionsMap: Record<string, string[]> = {};
@@ -153,7 +161,7 @@ const UmpireVote = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedRound && selectedDivision) {
+    if (selectedRound && selectedDivision && !isCustomMode) {
       supabase
         .from("fixtures")
         .select("*")
@@ -165,15 +173,16 @@ const UmpireVote = () => {
           if (!data || data.length === 0) setManualMode(true);
           else setManualMode(false);
         });
-        
-      const type = divisions.find(d => d.id === selectedDivision)?.division_type;
-      if (type === 'junior') {
-        setVoteLines(JSON.parse(JSON.stringify(juniorVotes)));
-      } else {
-        setVoteLines(JSON.parse(JSON.stringify(seniorVotes)));
+      if (!isCustomMode) {
+        const type = divisions.find(d => d.id === selectedDivision)?.division_type;
+        if (type === 'junior') {
+          setVoteLines(JSON.parse(JSON.stringify(juniorVotes)));
+        } else {
+          setVoteLines(JSON.parse(JSON.stringify(seniorVotes)));
+        }
       }
     }
-  }, [selectedRound, selectedDivision, divisions]);
+  }, [selectedRound, selectedDivision, divisions, isCustomMode]);
 
   useEffect(() => {
     if (selectedFixture) {
@@ -185,21 +194,49 @@ const UmpireVote = () => {
     }
   }, [selectedFixture, fixtures]);
 
-  const getTeamName = (id: string) => teams.find((t) => t.id === id)?.name || "";
+  const getTeamName = (id: string) => {
+    if (isCustomMode) return id; // in custom mode, teamId holds the text name
+    return teams.find((t) => t.id === id)?.name || "";
+  };
 
   const matchTeams = () => {
-    if (homeTeam && awayTeam) {
-      return teams.filter((t) => t.id === homeTeam || t.id === awayTeam);
+    if (isCustomMode) {
+      // Return pseudo-team objects using text names as IDs
+      const result: Team[] = [];
+      if (customHomeTeam.trim()) result.push({ id: customHomeTeam.trim(), 
+                                                name: customHomeTeam.trim(), 
+                                                short_name: null });
+      if (customAwayTeam.trim()) result.push({ id: customAwayTeam.trim(), 
+                                                name: customAwayTeam.trim(), 
+                                                short_name: null });
+      return result;
     }
+    if (homeTeam && awayTeam)
+      return teams.filter((t) => t.id === homeTeam || t.id === awayTeam);
     return teams;
   };
 
   const validate = (): string[] => {
     const errs: string[] = [];
     if (!selectedRound) errs.push("Round is required");
-    if (!selectedDivision) errs.push("Division is required");
-    if (!homeTeam || !awayTeam) errs.push("Both home and away teams are required");
-    if (homeTeam === awayTeam) errs.push("Home and away teams cannot be the same");
+    if (isCustomMode) {
+      if (!customRoundName.trim()) 
+        errs.push("Custom round name is required");
+      if (!customDivision.trim()) 
+        errs.push("Division name is required");
+      if (!customHomeTeam.trim()) 
+        errs.push("Home team name is required");
+      if (!customAwayTeam.trim()) 
+        errs.push("Away team name is required");
+      if (customHomeTeam.trim() === customAwayTeam.trim())
+        errs.push("Teams cannot be the same");
+    } else {
+      if (!selectedDivision) errs.push("Division is required");
+      if (!homeTeam || !awayTeam)
+        errs.push("Both home and away teams are required");
+      if (homeTeam === awayTeam)
+        errs.push("Home and away teams cannot be the same");
+    }
 
     // Match date validation
     const fixture = fixtures.find((f) => f.id === selectedFixture);
@@ -242,7 +279,7 @@ const UmpireVote = () => {
     const fixtureId = selectedFixture || null;
 
     let finalFixtureId = fixtureId;
-    if (!finalFixtureId) {
+    if (!finalFixtureId && !isCustomMode) {
       const { data: newFixture, error: fxErr } = await supabase
         .from("fixtures")
         .insert({
@@ -264,11 +301,19 @@ const UmpireVote = () => {
     const submissionData: any = {
       fixture_id: finalFixtureId,
       umpire_id: isProxy ? proxyUmpireId : user!.id,
-      round_id: selectedRound,
-      division_id: selectedDivision,
-      home_team_id: homeTeam,
-      away_team_id: awayTeam,
+      round_id: isCustomMode ? null : selectedRound,
+      division_id: isCustomMode ? null : selectedDivision,
+      home_team_id: isCustomMode ? null : homeTeam,
+      away_team_id: isCustomMode ? null : awayTeam,
     };
+
+    if (isCustomMode) {
+      submissionData.custom_round = customRoundName.trim();
+      submissionData.custom_division = customDivision.trim();
+      submissionData.custom_home_team = customHomeTeam.trim();
+      submissionData.custom_away_team = customAwayTeam.trim();
+      submissionData.fixture_id = null;
+    }
 
     if (isProxy) {
       submissionData.proxy_submitter_id = user!.id;
@@ -297,7 +342,8 @@ const UmpireVote = () => {
       votes: vl.votes,
       player_name: vl.playerName.trim(),
       player_number: parseInt(vl.playerNumber.trim()),
-      team_id: vl.teamId,
+      team_id: isCustomMode ? null : vl.teamId,
+      custom_team: isCustomMode ? vl.teamId : null,
     }));
 
     const { error: linesErr } = await supabase.from("vote_lines").insert(lines);
@@ -403,7 +449,7 @@ const UmpireVote = () => {
                 ))}
               </div>
               <div className="space-y-2">
-                <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(seniorVotes))); setSelectedFixture(""); setIsProxy(false); setProxyUmpireId(""); setProxyReason(""); }} className="w-full">
+                <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(seniorVotes))); setSelectedFixture(""); setIsProxy(false); setProxyUmpireId(""); setProxyReason(""); setCustomRoundName(""); setCustomDivision(""); setCustomHomeTeam(""); setCustomAwayTeam(""); }} className="w-full">
                   Submit another vote
                 </Button>
                 <Button variant="outline" onClick={() => navigate("/umpire/history")} className="w-full">
@@ -525,74 +571,134 @@ const UmpireVote = () => {
 
               <div className="space-y-2">
                 <Label>Round</Label>
-                <Select value={selectedRound} onValueChange={setSelectedRound}>
+                <Select value={selectedRound} onValueChange={(v) => {
+                  setSelectedRound(v);
+                  setSelectedDivision("");
+                  setSelectedFixture("");
+                  setHomeTeam("");
+                  setAwayTeam("");
+                  setCustomRoundName("");
+                  setCustomDivision("");
+                  setCustomHomeTeam("");
+                  setCustomAwayTeam("");
+                }}>
                   <SelectTrigger><SelectValue placeholder="Select round" /></SelectTrigger>
                   <SelectContent>
                     {rounds.map((r) => (
                       <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
                     ))}
+                    <SelectItem value={CUSTOM_ROUND}>
+                      — Custom (free text) —
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Division</Label>
-                <Select value={selectedDivision} onValueChange={setSelectedDivision}>
-                  <SelectTrigger><SelectValue placeholder="Select division" /></SelectTrigger>
-                  <SelectContent>
-                    {divisions.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {selectedRound && selectedDivision && !manualMode && fixtures.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Fixture</Label>
-                  <Select value={selectedFixture} onValueChange={setSelectedFixture}>
-                    <SelectTrigger><SelectValue placeholder="Select fixture" /></SelectTrigger>
-                    <SelectContent>
-                      {fixtures.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>
-                          {getTeamName(f.home_team_id)} vs {getTeamName(f.away_team_id)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {selectedRound && selectedDivision && manualMode && (
+              {isCustomMode ? (
                 <>
-                  <p className="text-sm text-muted-foreground">No fixtures found. Select teams manually.</p>
+                  <div className="space-y-2">
+                    <Label>Custom Round Name</Label>
+                    <Input
+                      placeholder="e.g. Round 6, Finals, Friendly"
+                      value={customRoundName}
+                      onChange={(e) => setCustomRoundName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Division</Label>
+                    <Input
+                      placeholder="e.g. Division 1 Open"
+                      value={customDivision}
+                      onChange={(e) => setCustomDivision(e.target.value)}
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label>Home Team</Label>
-                    <Select value={homeTeam} onValueChange={setHomeTeam}>
-                      <SelectTrigger><SelectValue placeholder="Select home team" /></SelectTrigger>
-                      <SelectContent>
-                        {teams.filter((t) => (teamDivisionsMap[t.id] || []).includes(selectedDivision)).map((t) => (
-                          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      placeholder="Home team name"
+                      value={customHomeTeam}
+                      onChange={(e) => setCustomHomeTeam(e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Away Team</Label>
-                    <Select value={awayTeam} onValueChange={setAwayTeam}>
-                      <SelectTrigger><SelectValue placeholder="Select away team" /></SelectTrigger>
+                    <Input
+                      placeholder="Away team name"
+                      value={customAwayTeam}
+                      onChange={(e) => setCustomAwayTeam(e.target.value)}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label>Division</Label>
+                    <Select value={selectedDivision} onValueChange={setSelectedDivision}>
+                      <SelectTrigger><SelectValue placeholder="Select division" /></SelectTrigger>
                       <SelectContent>
-                        {teams.filter((t) => (teamDivisionsMap[t.id] || []).includes(selectedDivision) && t.id !== homeTeam).map((t) => (
-                          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                        {divisions.map((d) => (
+                          <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {selectedRound && selectedDivision && !manualMode && fixtures.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Fixture</Label>
+                      <Select value={selectedFixture} onValueChange={setSelectedFixture}>
+                        <SelectTrigger><SelectValue placeholder="Select fixture" /></SelectTrigger>
+                        <SelectContent>
+                          {fixtures.map((f) => (
+                            <SelectItem key={f.id} value={f.id}>
+                              {getTeamName(f.home_team_id)} vs {getTeamName(f.away_team_id)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {selectedRound && selectedDivision && manualMode && (
+                    <>
+                      <p className="text-sm text-muted-foreground">No fixtures found. Select teams manually.</p>
+                      <div className="space-y-2">
+                        <Label>Home Team</Label>
+                        <Select value={homeTeam} onValueChange={setHomeTeam}>
+                          <SelectTrigger><SelectValue placeholder="Select home team" /></SelectTrigger>
+                          <SelectContent>
+                            {teams.filter((t) => (teamDivisionsMap[t.id] || []).includes(selectedDivision)).map((t) => (
+                              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Away Team</Label>
+                        <Select value={awayTeam} onValueChange={setAwayTeam}>
+                          <SelectTrigger><SelectValue placeholder="Select away team" /></SelectTrigger>
+                          <SelectContent>
+                            {teams.filter((t) => (teamDivisionsMap[t.id] || []).includes(selectedDivision) && t.id !== homeTeam).map((t) => (
+                              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 
               <Button
                 className="w-full"
-                disabled={!selectedRound || !selectedDivision || (!selectedFixture && !manualMode) || (manualMode && (!homeTeam || !awayTeam))}
+                disabled={
+                  !selectedRound ||
+                  (isCustomMode
+                    ? (!customRoundName.trim() || !customDivision.trim() ||
+                        !customHomeTeam.trim() || !customAwayTeam.trim())
+                    : (!selectedDivision ||
+                        (!selectedFixture && !manualMode) ||
+                        (manualMode && (!homeTeam || !awayTeam))))
+                }
                 onClick={() => setStep(2)}
               >
                 Next: Player Votes
@@ -607,7 +713,9 @@ const UmpireVote = () => {
             <CardHeader>
               <CardTitle>Player Votes</CardTitle>
               <CardDescription>
-                {getTeamName(homeTeam)} vs {getTeamName(awayTeam)}
+                {isCustomMode
+                  ? `${customHomeTeam} vs ${customAwayTeam}`
+                  : `${getTeamName(homeTeam)} vs ${getTeamName(awayTeam)}`}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -683,7 +791,9 @@ const UmpireVote = () => {
             <CardHeader>
               <CardTitle>Confirm Your Votes</CardTitle>
               <CardDescription>
-                {getTeamName(homeTeam)} vs {getTeamName(awayTeam)}
+                {isCustomMode
+                  ? `${customHomeTeam} vs ${customAwayTeam}`
+                  : `${getTeamName(homeTeam)} vs ${getTeamName(awayTeam)}`}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
