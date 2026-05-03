@@ -296,8 +296,8 @@ const Submissions = () => {
                 return (
                   <React.Fragment key={s.id}>
                     <TableRow className={`${s.is_deleted ? "opacity-50 line-through" : ""} ${isAdminSubmitted ? "bg-amber-50 dark:bg-amber-950/20" : ""} ${isProxySubmitted ? "border-l-4 border-l-purple-500 bg-purple-50/50 dark:bg-purple-950/10" : ""}`}>
-                      <TableCell className="font-medium">{getName(rounds, s.round_id) || s.custom_round || "—"}</TableCell>
-                      <TableCell>{getName(divisions, s.division_id) || s.custom_division || "—"}</TableCell>
+                      <TableCell className="font-medium">{s.round_id ? getName(rounds, s.round_id) : (s.custom_round || "—")}</TableCell>
+                      <TableCell>{s.division_id ? getName(divisions, s.division_id) : (s.custom_division || "—")}</TableCell>
                       <TableCell>
                         <div>
                           {getUmpireName(s)}
