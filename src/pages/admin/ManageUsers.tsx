@@ -777,13 +777,27 @@ const ManageUsers = () => {
               >
                 Cancel
               </Button>
-              <Button
-                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
-                onClick={handleMerge}
-                disabled={!mergeTargetId || merging}
-              >
-                {merging ? "Merging..." : "Confirm Merge"}
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button className="flex-1 bg-orange-500 hover:bg-orange-600 text-white" disabled={!mergeTargetId || merging}>
+                    {merging ? "Merging..." : "Confirm Merge"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>This cannot be undone</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      You are about to merge <strong>{mergeSource?.fullName}</strong> into the selected account. All votes recorded under this placeholder will be permanently transferred. The placeholder account will be hidden. Double-check you have selected the correct person before continuing.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Go Back</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleMerge} className="bg-orange-500 hover:bg-orange-600 text-white">
+                      Yes, Merge Now
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         </DialogContent>
