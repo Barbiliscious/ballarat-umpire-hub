@@ -15,7 +15,9 @@ interface PendingSubmission {
   custom_round: string | null;
   custom_division: string | null;
   proxy_umpire_name: string | null;
+  proxy_submitter_name: string | null;
   submitted_by_admin_id: string | null;
+  submitted_by_admin_name: string | null;
   proxy_submitter_id: string | null;
 }
 
@@ -38,7 +40,7 @@ const Dashboard = () => {
           supabase.from("teams").select("id", { count: "exact", head: true }),
           supabase.from("rounds").select("id", { count: "exact", head: true }),
           supabase.from("vote_submissions")
-            .select("id, submitted_at, round_id, division_id, umpire_id, custom_round, custom_division, proxy_umpire_name, submitted_by_admin_id, proxy_submitter_id")
+            .select("id, submitted_at, round_id, division_id, umpire_id, custom_round, custom_division, proxy_umpire_name, proxy_submitter_name, submitted_by_admin_id, submitted_by_admin_name")
             .eq("is_deleted", false)
             .eq("is_approved", false)
             .order("submitted_at", { ascending: false })
@@ -109,10 +111,15 @@ const Dashboard = () => {
   const getName = (list: { id: string; name: string }[], id: string) => list.find((i) => i.id === id)?.name || "—";
   const getUmpire = (s: PendingSubmission) => {
     if (s.submitted_by_admin_id || s.proxy_submitter_id) {
-      return s.proxy_umpire_name || "Unknown";
+      if (s.proxy_umpire_name) return s.proxy_umpire_name;
+      if (s.umpire_id && profilesMap[s.umpire_id]) {
+        const p = profilesMap[s.umpire_id];
+        return p.full_name || p.email;
+      }
+      return s.proxy_submitter_name || s.submitted_by_admin_name || "Unknown";
     }
     const p = profilesMap[s.umpire_id];
-    return p?.full_name || p?.email || s.umpire_id.slice(0, 8);
+    return p?.full_name || p?.email || s.umpire_id?.slice(0, 8) || "—";
   };
 
   const cards = [
