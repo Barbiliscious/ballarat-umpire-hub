@@ -382,12 +382,12 @@ const AdminVoteSubmit = () => {
                 }}
               >
                 <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Select umpire" />
+                  {showAddUmpire ? <span className="text-muted-foreground">Add new umpire</span> : <SelectValue placeholder="Select umpire" />}
                 </SelectTrigger>
                 <SelectContent>
                   {umpires.map((u) => (
                     <SelectItem key={u.user_id ?? u.full_name} value={u.full_name || u.email || ""}>
-                      {u.full_name || u.email}
+                      {u.full_name && u.email ? `${u.full_name} (${u.email})` : u.full_name || u.email}
                       {u.is_placeholder && <span className="ml-2 text-xs text-muted-foreground">(placeholder)</span>}
                     </SelectItem>
                   ))}

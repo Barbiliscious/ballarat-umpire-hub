@@ -310,8 +310,16 @@ const Submissions = () => {
                           if (!isProxySubmitted && !isAdminSubmitted) return <span>Self</span>;
                           let proxyEmail = "";
                           let proxyReason = "";
-                          if (isAdminSubmitted) { proxyEmail = profilesMap[s.submitted_by_admin_id!]?.email || s.submitted_by_admin_name || "Admin"; proxyReason = "Admin submission"; }
-                          else if (isProxySubmitted) { proxyEmail = profilesMap[s.proxy_submitter_id!]?.email || s.proxy_submitter_name || "Proxy"; proxyReason = s.proxy_reason || ""; }
+                          if (isAdminSubmitted) {
+                            const adminProfile = profilesMap[s.submitted_by_admin_id!];
+                            proxyEmail = adminProfile?.full_name || adminProfile?.email || s.submitted_by_admin_name || "Admin";
+                            proxyReason = "Admin submission";
+                          }
+                          else if (isProxySubmitted) {
+                            const proxyProfile = profilesMap[s.proxy_submitter_id!];
+                            proxyEmail = proxyProfile?.full_name || proxyProfile?.email || s.proxy_submitter_name || "Proxy";
+                            proxyReason = s.proxy_reason || "";
+                          }
                           return (<div><div>{proxyEmail}</div>{proxyReason && <div className="text-xs text-muted-foreground mt-0.5">{proxyReason}</div>}</div>);
                         })()}
                       </TableCell>
