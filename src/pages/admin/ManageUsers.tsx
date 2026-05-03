@@ -58,6 +58,7 @@ interface UserRow {
   lastSignIn: string | null;
   createdAt: string | null;
   hasPassword: boolean;
+  isEmailConfirmed: boolean;
   isPlaceholder: boolean;
   profileId: string | null; // the profiles.id for placeholder accounts
 }
@@ -171,6 +172,7 @@ const ManageUsers = () => {
       lastSignIn: null,
       createdAt: null,
       hasPassword: false,
+      isEmailConfirmed: true,
       isPlaceholder: true,
       profileId: p.id,
     }));
@@ -223,6 +225,7 @@ const ManageUsers = () => {
         lastSignIn: auth?.last_sign_in_at || null,
         createdAt: auth?.created_at || p?.created_at || new Date().toISOString(),
         hasPassword: auth?.has_password || false,
+        isEmailConfirmed: auth?.email_confirmed_at != null,
         isPlaceholder: false,
         profileId: null,
       };
@@ -551,6 +554,8 @@ const ManageUsers = () => {
                           {!u.isPlaceholder && (
                             u.isDisabled
                               ? <Badge variant="destructive">Blocked</Badge>
+                              : !u.isEmailConfirmed
+                                ? <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white">Pending</Badge>
                               : <Badge className="bg-green-500 hover:bg-green-600 text-white">Active</Badge>
                           )}
                           {u.isPlaceholder && (
