@@ -36,6 +36,11 @@ interface Submission {
   proxy_submitter_id: string | null;
   proxy_submitter_name: string | null;
   proxy_reason: string | null;
+  proxy_umpire_name: string | null;
+  custom_round: string | null;
+  custom_division: string | null;
+  custom_home_team: string | null;
+  custom_away_team: string | null;
 }
 
 interface VoteLine {
@@ -83,6 +88,10 @@ const Submissions = () => {
   const [editDivisionId, setEditDivisionId] = useState("");
   const [editHomeTeamId, setEditHomeTeamId] = useState("");
   const [editAwayTeamId, setEditAwayTeamId] = useState("");
+  const [editCustomRound, setEditCustomRound] = useState("");
+  const [editCustomDivision, setEditCustomDivision] = useState("");
+  const [editCustomHomeTeam, setEditCustomHomeTeam] = useState("");
+  const [editCustomAwayTeam, setEditCustomAwayTeam] = useState("");
   const [editLines, setEditLines] = useState<EditableLine[]>([]);
   const [approveSaving, setApproveSaving] = useState(false);
 
@@ -131,10 +140,11 @@ const Submissions = () => {
   const getName = (list: { id: string; name: string }[], id: string) => list.find((i) => i.id === id)?.name || "—";
 
   const getUmpireName = (s: Submission) => {
-    const isProxy = !!s.proxy_submitter_id || !!s.submitted_by_admin_id;
-    if (isProxy) return s.umpire_id;
+    if (s.submitted_by_admin_id || s.proxy_submitter_id) {
+      return s.proxy_umpire_name || s.proxy_submitter_name || "Unknown";
+    }
     const p = profilesMap[s.umpire_id];
-    return p ? p.email : s.umpire_id;
+    return p ? (p.full_name || p.email) : s.umpire_id;
   };
 
   const filtered = submissions.filter((s) => {
@@ -165,6 +175,10 @@ const Submissions = () => {
     setEditDivisionId(sub.division_id);
     setEditHomeTeamId(sub.home_team_id);
     setEditAwayTeamId(sub.away_team_id);
+    setEditCustomRound(sub.custom_round || "");
+    setEditCustomDivision(sub.custom_division || "");
+    setEditCustomHomeTeam(sub.custom_home_team || "");
+    setEditCustomAwayTeam(sub.custom_away_team || "");
     setEditLines(lines.map(l => ({ id: l.id, votes: l.votes, player_name: l.player_name, player_number: l.player_number })));
   };
 
@@ -172,11 +186,19 @@ const Submissions = () => {
     if (!approveDialogSub) return;
     setApproveSaving(true);
     const sub = approveDialogSub;
+    const isCustomSub = !!sub.custom_round || !sub.round_id;
     const edits: { field_name: string; original_value: string; new_value: string }[] = [];
-    if (editRoundId !== sub.round_id) edits.push({ field_name: "round", original_value: getName(rounds, sub.round_id), new_value: getName(rounds, editRoundId) });
-    if (editDivisionId !== sub.division_id) edits.push({ field_name: "division", original_value: getName(divisions, sub.division_id), new_value: getName(divisions, editDivisionId) });
-    if (editHomeTeamId !== sub.home_team_id) edits.push({ field_name: "home_team", original_value: getName(teams, sub.home_team_id), new_value: getName(teams, editHomeTeamId) });
-    if (editAwayTeamId !== sub.away_team_id) edits.push({ field_name: "away_team", original_value: getName(teams, sub.away_team_id), new_value: getName(teams, editAwayTeamId) });
+    if (!isCustomSub) {
+      if (editRoundId !== sub.round_id) edits.push({ field_name: "round", original_value: getName(rounds, sub.round_id), new_value: getName(rounds, editRoundId) });
+      if (editDivisionId !== sub.division_id) edits.push({ field_name: "division", original_value: getName(divisions, sub.division_id), new_value: getName(divisions, editDivisionId) });
+      if (editHomeTeamId !== sub.home_team_id) edits.push({ field_name: "home_team", original_value: getName(teams, sub.home_team_id), new_value: getName(teams, editHomeTeamId) });
+      if (editAwayTeamId !== sub.away_team_id) edits.push({ field_name: "away_team", original_value: getName(teams, sub.away_team_id), new_value: getName(teams, editAwayTeamId) });
+    } else {
+      if (editCustomRound !== (sub.custom_round || "")) edits.push({ field_name: "custom_round", original_value: sub.custom_round || "", new_value: editCustomRound });
+      if (editCustomDivision !== (sub.custom_division || "")) edits.push({ field_name: "custom_division", original_value: sub.custom_division || "", new_value: editCustomDivision });
+      if (editCustomHomeTeam !== (sub.custom_home_team || "")) edits.push({ field_name: "custom_home_team", original_value: sub.custom_home_team || "", new_value: editCustomHomeTeam });
+      if (editCustomAwayTeam !== (sub.custom_away_team || "")) edits.push({ field_name: "custom_away_team", original_value: sub.custom_away_team || "", new_value: editCustomAwayTeam });
+    }
     const originalLines = voteLines.filter(vl => vl.submission_id === sub.id).sort((a, b) => b.votes - a.votes);
     editLines.forEach((el, i) => {
       const orig = originalLines[i];
@@ -184,7 +206,10 @@ const Submissions = () => {
       if (el.player_name !== orig.player_name) edits.push({ field_name: `vote_${el.votes}_name`, original_value: orig.player_name, new_value: el.player_name });
       if (Number(el.player_number) !== Number(orig.player_number)) edits.push({ field_name: `vote_${el.votes}_number`, original_value: String(orig.player_number), new_value: String(el.player_number) });
     });
-    const { error: subErr } = await supabase.from("vote_submissions").update({ round_id: editRoundId, division_id: editDivisionId, home_team_id: editHomeTeamId, away_team_id: editAwayTeamId, is_approved: true }).eq("id", sub.id);
+    const updatePayload = isCustomSub
+      ? { custom_round: editCustomRound, custom_division: editCustomDivision, custom_home_team: editCustomHomeTeam, custom_away_team: editCustomAwayTeam, is_approved: true }
+      : { round_id: editRoundId, division_id: editDivisionId, home_team_id: editHomeTeamId, away_team_id: editAwayTeamId, is_approved: true };
+    const { error: subErr } = await supabase.from("vote_submissions").update(updatePayload).eq("id", sub.id);
     if (subErr) { toast.error(subErr.message); setApproveSaving(false); return; }
     for (const el of editLines) {
       await supabase.from("vote_lines").update({ player_name: el.player_name, player_number: Number(el.player_number) }).eq("id", el.id);
@@ -271,15 +296,15 @@ const Submissions = () => {
                 return (
                   <React.Fragment key={s.id}>
                     <TableRow className={`${s.is_deleted ? "opacity-50 line-through" : ""} ${isAdminSubmitted ? "bg-amber-50 dark:bg-amber-950/20" : ""} ${isProxySubmitted ? "border-l-4 border-l-purple-500 bg-purple-50/50 dark:bg-purple-950/10" : ""}`}>
-                      <TableCell className="font-medium">{getName(rounds, s.round_id)}</TableCell>
-                      <TableCell>{getName(divisions, s.division_id)}</TableCell>
+                      <TableCell className="font-medium">{getName(rounds, s.round_id) || s.custom_round || "—"}</TableCell>
+                      <TableCell>{getName(divisions, s.division_id) || s.custom_division || "—"}</TableCell>
                       <TableCell>
                         <div>
                           {getUmpireName(s)}
                           {s.is_deleted && s.deleted_by && (<div className="text-xs text-destructive font-medium mt-0.5">Deleted by: {profilesMap[s.deleted_by]?.email || "Unknown"}</div>)}
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm">{getName(teams, s.home_team_id)} vs {getName(teams, s.away_team_id)}</TableCell>
+                      <TableCell className="text-sm">{(s.home_team_id ? getName(teams, s.home_team_id) : s.custom_home_team) || "—"} vs {(s.away_team_id ? getName(teams, s.away_team_id) : s.custom_away_team) || "—"}</TableCell>
                       <TableCell>
                         {(() => {
                           if (!isProxySubmitted && !isAdminSubmitted) return <span>Self</span>;
@@ -307,7 +332,7 @@ const Submissions = () => {
                           {s.is_locked && <Badge variant="outline" className="ml-1">Locked</Badge>}
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{s.submitted_at ? new Date(s.submitted_at).toLocaleDateString("en-AU") : "—"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{s.submitted_at ? new Date(s.submitted_at).toLocaleString("en-AU", { dateStyle: "short", timeStyle: "short" }) : "—"}</TableCell>
                       <TableCell className="text-right">
                         {s.is_deleted ? (
                           <Button variant="ghost" size="sm" onClick={() => restoreSubmission(s)} title="Restore"><Eye className="h-3.5 w-3.5" /></Button>
@@ -369,44 +394,67 @@ const Submissions = () => {
           {approveDialogSub && (
             <div className="space-y-4 py-2">
               <p className="text-sm text-muted-foreground">Review and correct any details before approving.</p>
-              <div className="space-y-1">
-                <Label className="text-xs">Round</Label>
-                <Select value={editRoundId} onValueChange={setEditRoundId}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{rounds.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Division</Label>
-                <Select value={editDivisionId} onValueChange={setEditDivisionId}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{divisions.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Home Team</Label>
-                <Select value={editHomeTeamId} onValueChange={setEditHomeTeamId}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{teams.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Away Team</Label>
-                <Select value={editAwayTeamId} onValueChange={setEditAwayTeamId}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{teams.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">Votes</Label>
-                {editLines.map((line, i) => (
-                  <div key={line.id} className="flex items-center gap-2">
-                    <span className="w-10 text-sm font-bold text-primary shrink-0">{line.votes}pts</span>
-                    <Input value={line.player_name} onChange={e => setEditLines(prev => prev.map((l, idx) => idx === i ? { ...l, player_name: e.target.value } : l))} placeholder="Player name" className="flex-1" />
-                    <Input value={String(line.player_number)} onChange={e => setEditLines(prev => prev.map((l, idx) => idx === i ? { ...l, player_number: Number(e.target.value) } : l))} placeholder="#" className="w-20" type="number" />
-                  </div>
-                ))}
-              </div>
+              {(() => {
+                const isCustomSub = !!approveDialogSub.custom_round || !approveDialogSub.round_id;
+                return (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Round</Label>
+                      {isCustomSub ? (
+                        <Input value={editCustomRound} onChange={e => setEditCustomRound(e.target.value)} placeholder="Round name" />
+                      ) : (
+                        <Select value={editRoundId} onValueChange={setEditRoundId}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>{rounds.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Division</Label>
+                      {isCustomSub ? (
+                        <Input value={editCustomDivision} onChange={e => setEditCustomDivision(e.target.value)} placeholder="Division name" />
+                      ) : (
+                        <Select value={editDivisionId} onValueChange={setEditDivisionId}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>{divisions.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Home Team</Label>
+                      {isCustomSub ? (
+                        <Input value={editCustomHomeTeam} onChange={e => setEditCustomHomeTeam(e.target.value)} placeholder="Home team name" />
+                      ) : (
+                        <Select value={editHomeTeamId} onValueChange={setEditHomeTeamId}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>{teams.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Away Team</Label>
+                      {isCustomSub ? (
+                        <Input value={editCustomAwayTeam} onChange={e => setEditCustomAwayTeam(e.target.value)} placeholder="Away team name" />
+                      ) : (
+                        <Select value={editAwayTeamId} onValueChange={setEditAwayTeamId}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>{teams.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Votes</Label>
+                      {editLines.map((line, i) => (
+                        <div key={line.id} className="flex items-center gap-2">
+                          <span className="w-10 text-sm font-bold text-primary shrink-0">{line.votes}pts</span>
+                          <Input value={line.player_name} onChange={e => setEditLines(prev => prev.map((l, idx) => idx === i ? { ...l, player_name: e.target.value } : l))} placeholder="Player name" className="flex-1" />
+                          <Input value={String(line.player_number)} onChange={e => setEditLines(prev => prev.map((l, idx) => idx === i ? { ...l, player_number: Number(e.target.value) } : l))} placeholder="#" className="w-20" type="number" />
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
           <DialogFooter className="gap-2 pt-2">
