@@ -55,10 +55,19 @@ const AdminVoteSubmit = () => {
   // Custom mode state
   const [customRoundName, setCustomRoundName] = useState("");
   const [customDivision, setCustomDivision] = useState("");
+  const [customDivisionType, setCustomDivisionType] = useState<"senior" | "junior">("senior");
   const [customHomeTeam, setCustomHomeTeam] = useState("");
   const [customAwayTeam, setCustomAwayTeam] = useState("");
 
   const isCustomMode = selectedRound === CUSTOM_ROUND;
+
+  useEffect(() => {
+    if (isCustomMode) {
+      setVoteLines(JSON.parse(JSON.stringify(
+        customDivisionType === "junior" ? juniorVotes : seniorVotes
+      )));
+    }
+  }, [customDivisionType, isCustomMode]);
 
   const [voteLines, setVoteLines] = useState<VoteLine[]>(JSON.parse(JSON.stringify(seniorVotes)));
   const [submitting, setSubmitting] = useState(false);
@@ -246,6 +255,7 @@ const AdminVoteSubmit = () => {
     setAwayTeam("");
     setCustomRoundName("");
     setCustomDivision("");
+    setCustomDivisionType("senior");
     setCustomHomeTeam("");
     setCustomAwayTeam("");
   };
@@ -346,6 +356,21 @@ const AdminVoteSubmit = () => {
                 <div className="space-y-2">
                   <Label>Division</Label>
                   <Input placeholder="e.g. Division 1 Open" value={customDivision} onChange={(e) => setCustomDivision(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Match Type</Label>
+                  <Select
+                    value={customDivisionType}
+                    onValueChange={(v) => setCustomDivisionType(v as "senior" | "junior")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select match type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="senior">Senior (3 votes)</SelectItem>
+                      <SelectItem value="junior">Junior (4 votes)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Home Team</Label>

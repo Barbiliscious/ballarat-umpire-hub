@@ -57,6 +57,7 @@ const UmpireVote = () => {
   const [selectedFixture, setSelectedFixture] = useState("");
   const [customRoundName, setCustomRoundName] = useState("");
   const [customDivision, setCustomDivision] = useState("");
+  const [customDivisionType, setCustomDivisionType] = useState<"senior" | "junior">("senior");
   const [customHomeTeam, setCustomHomeTeam] = useState("");
   const [customAwayTeam, setCustomAwayTeam] = useState("");
   const [manualMode, setManualMode] = useState(false);
@@ -82,6 +83,14 @@ const UmpireVote = () => {
   const [selectedProxyName, setSelectedProxyName] = useState("");
 
   const isCustomMode = selectedRound === CUSTOM_ROUND;
+
+  useEffect(() => {
+    if (isCustomMode) {
+      setVoteLines(JSON.parse(JSON.stringify(
+        customDivisionType === "junior" ? juniorVotes : seniorVotes
+      )));
+    }
+  }, [customDivisionType, isCustomMode]);
 
   // Build a map of teamId → divisionId[] from the team_divisions table
   const teamDivisionsMap: Record<string, string[]> = {};
@@ -449,7 +458,7 @@ const UmpireVote = () => {
                 ))}
               </div>
               <div className="space-y-2">
-                <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(seniorVotes))); setSelectedFixture(""); setIsProxy(false); setProxyUmpireId(""); setProxyReason(""); setCustomRoundName(""); setCustomDivision(""); setCustomHomeTeam(""); setCustomAwayTeam(""); }} className="w-full">
+                <Button onClick={() => { setSubmitted(false); setStep(1); setVoteLines(JSON.parse(JSON.stringify(seniorVotes))); setSelectedFixture(""); setIsProxy(false); setProxyUmpireId(""); setProxyReason(""); setCustomRoundName(""); setCustomDivision(""); setCustomDivisionType("senior"); setCustomHomeTeam(""); setCustomAwayTeam(""); }} className="w-full">
                   Submit another vote
                 </Button>
                 <Button variant="outline" onClick={() => navigate("/umpire/history")} className="w-full">
@@ -610,6 +619,21 @@ const UmpireVote = () => {
                       value={customDivision}
                       onChange={(e) => setCustomDivision(e.target.value)}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Match Type</Label>
+                    <Select
+                      value={customDivisionType}
+                      onValueChange={(v) => setCustomDivisionType(v as "senior" | "junior")}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select match type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="senior">Senior (3 votes)</SelectItem>
+                        <SelectItem value="junior">Junior (4 votes)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Home Team</Label>
