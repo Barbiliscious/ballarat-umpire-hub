@@ -520,7 +520,7 @@ const UmpireVote = () => {
                   onCheckedChange={(checked) => {
                     setIsProxy(!!checked);
                     if (!checked) {
-                      setProxyUmpireId("");
+                      setProxyUmpireName("");
                       setProxyReason("");
                     }
                   }}
