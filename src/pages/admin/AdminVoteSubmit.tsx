@@ -42,9 +42,13 @@ const AdminVoteSubmit = () => {
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
   const [teamDivisions, setTeamDivisions] = useState<{ team_id: string; division_id: string }[]>([]);
   const [fixtures, setFixtures] = useState<{ id: string; home_team_id: string; away_team_id: string }[]>([]);
-  const [umpires, setUmpires] = useState<{ user_id: string; email: string; full_name: string | null }[]>([]);
+  const [umpires, setUmpires] = useState<{ user_id: string | null; email: string; full_name: string | null; is_placeholder: boolean }[]>([]);
 
   const [selectedUmpire, setSelectedUmpire] = useState("");
+  const [showAddUmpire, setShowAddUmpire] = useState(false);
+  const [newUmpireName, setNewUmpireName] = useState("");
+  const [newUmpireEmail, setNewUmpireEmail] = useState("");
+  const [addingUmpire, setAddingUmpire] = useState(false);
   const [selectedRound, setSelectedRound] = useState("");
   const [selectedDivision, setSelectedDivision] = useState("");
   const [selectedFixture, setSelectedFixture] = useState("");
@@ -87,7 +91,10 @@ const AdminVoteSubmit = () => {
       supabase.from("divisions").select("id, name, division_type").eq("is_active", true).order("name"),
       supabase.from("teams").select("id, name").eq("is_active", true).order("name"),
       supabase.from("team_divisions").select("team_id, division_id"),
-      supabase.from("profiles").select("user_id, email, full_name"),
+      supabase.from("profiles")
+      .select("user_id, email, full_name, is_placeholder")
+      .eq("is_disabled", false)
+      .ilike("role", "%umpire%"),
     ]).then(([r, d, t, td, p]) => {
       if (r.data) setRounds(r.data);
       if (d.data) setDivisions(d.data);
@@ -249,6 +256,9 @@ const AdminVoteSubmit = () => {
     setVoteLines(JSON.parse(JSON.stringify(seniorVotes)));
     setSelectedFixture("");
     setSelectedUmpire("");
+    setShowAddUmpire(false);
+    setNewUmpireName("");
+    setNewUmpireEmail("");
     setSelectedRound("");
     setSelectedDivision("");
     setHomeTeam("");
@@ -258,6 +268,34 @@ const AdminVoteSubmit = () => {
     setCustomDivisionType("senior");
     setCustomHomeTeam("");
     setCustomAwayTeam("");
+  };
+
+  const handleAddUmpire = async () => {
+    if (!newUmpireName.trim()) return;
+    setAddingUmpire(true);
+    const { data, error } = await supabase
+      .from("profiles")
+      .insert({
+        full_name: newUmpireName.trim(),
+        email: newUmpireEmail.trim() || null,
+        role: "umpire",
+        is_placeholder: true,
+        is_disabled: false,
+      })
+      .select("user_id, email, full_name, is_placeholder")
+      .single();
+    if (error) {
+      toast.error("Failed to add umpire: " + error.message);
+      setAddingUmpire(false);
+      return;
+    }
+    setUmpires((prev) => [...prev, data]);
+    setSelectedUmpire(data.full_name || data.email || "");
+    setShowAddUmpire(false);
+    setNewUmpireName("");
+    setNewUmpireEmail("");
+    setAddingUmpire(false);
+    toast.success("Umpire added and selected");
   };
 
   if (submitted) {
@@ -326,7 +364,53 @@ const AdminVoteSubmit = () => {
           <CardContent className="space-y-4">
             <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 space-y-2">
               <Label className="text-amber-700 dark:text-amber-300 font-semibold">Submitting on behalf of umpire</Label>
-              <Input type="text" placeholder="Type umpire's name" value={selectedUmpire} onChange={(e) => setSelectedUmpire(e.target.value)} className="bg-background" />
+              <Select
+                value={selectedUmpire}
+                onValueChange={(v) => {
+                  if (v === "__add_new__") {
+                    setShowAddUmpire(true);
+                  } else {
+                    setSelectedUmpire(v);
+                    setShowAddUmpire(false);
+                  }
+                }}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Select umpire" />
+                </SelectTrigger>
+                <SelectContent>
+                  {umpires.map((u) => (
+                    <SelectItem key={u.user_id ?? u.full_name} value={u.full_name || u.email || ""}>
+                      {u.full_name || u.email}
+                      {u.is_placeholder && <span className="ml-2 text-xs text-muted-foreground">(placeholder)</span>}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="__add_new__">＋ Add new umpire...</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {showAddUmpire && (
+                <div className="space-y-2 pt-2 border-t border-amber-200">
+                  <Input
+                    placeholder="Full name (required)"
+                    value={newUmpireName}
+                    onChange={(e) => setNewUmpireName(e.target.value)}
+                    className="bg-background"
+                  />
+                  <Input
+                    placeholder="Email (optional)"
+                    value={newUmpireEmail}
+                    onChange={(e) => setNewUmpireEmail(e.target.value)}
+                    className="bg-background"
+                  />
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleAddUmpire} disabled={!newUmpireName.trim() || addingUmpire}>
+                      {addingUmpire ? "Adding..." : "Add & Select"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setShowAddUmpire(false)}>Cancel</Button>
+                  </div>
+                </div>
+              )}
               <p className="text-xs text-amber-600 dark:text-amber-400">This vote will be flagged as admin-submitted</p>
             </div>
 
