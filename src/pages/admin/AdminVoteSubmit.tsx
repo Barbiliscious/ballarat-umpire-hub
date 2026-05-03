@@ -373,6 +373,7 @@ const AdminVoteSubmit = () => {
                 value={selectedUmpire}
                 onValueChange={(v) => {
                   if (v === "__add_new__") {
+                    setSelectedUmpire("");
                     setShowAddUmpire(true);
                   } else {
                     setSelectedUmpire(v);
