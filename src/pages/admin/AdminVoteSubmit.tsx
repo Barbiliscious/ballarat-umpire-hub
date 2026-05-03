@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -49,6 +50,7 @@ const AdminVoteSubmit = () => {
   const [newUmpireName, setNewUmpireName] = useState("");
   const [newUmpireEmail, setNewUmpireEmail] = useState("");
   const [addingUmpire, setAddingUmpire] = useState(false);
+  const [proxyReason, setProxyReason] = useState("");
   const [selectedRound, setSelectedRound] = useState("");
   const [selectedDivision, setSelectedDivision] = useState("");
   const [selectedFixture, setSelectedFixture] = useState("");
@@ -153,6 +155,7 @@ const AdminVoteSubmit = () => {
   const validate = (): string[] => {
     const errs: string[] = [];
     if (!selectedUmpire) errs.push("Umpire name is required");
+    if (!proxyReason.trim()) errs.push("A reason is required when submitting on behalf of an umpire");
     if (!selectedRound) errs.push("Round is required");
     if (isCustomMode) {
       if (!customRoundName.trim()) errs.push("Custom round name is required");
@@ -211,6 +214,7 @@ const AdminVoteSubmit = () => {
       submitted_by_admin_id: user?.id,
       submitted_by_admin_name: adminName,
       proxy_submitter_name: selectedUmpire,
+      proxy_reason: proxyReason.trim(),
     };
 
     if (isCustomMode) {
@@ -259,6 +263,7 @@ const AdminVoteSubmit = () => {
     setShowAddUmpire(false);
     setNewUmpireName("");
     setNewUmpireEmail("");
+    setProxyReason("");
     setSelectedRound("");
     setSelectedDivision("");
     setHomeTeam("");
@@ -388,6 +393,17 @@ const AdminVoteSubmit = () => {
                   <SelectItem value="__add_new__">＋ Add new umpire...</SelectItem>
                 </SelectContent>
               </Select>
+
+              <div className="space-y-2">
+                <Label className="text-amber-700 dark:text-amber-300">Reason for submitting on behalf</Label>
+                <Textarea
+                  placeholder="e.g. Umpire is travelling and asked me to submit"
+                  value={proxyReason}
+                  onChange={(e) => setProxyReason(e.target.value)}
+                  rows={2}
+                  className="bg-background"
+                />
+              </div>
 
               {showAddUmpire && (
                 <div className="space-y-2 pt-2 border-t border-amber-200">
