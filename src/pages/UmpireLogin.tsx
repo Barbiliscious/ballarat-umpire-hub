@@ -138,19 +138,9 @@ const UmpireLogin = () => {
       return;
     }
 
-    const { error: signInErr } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password: signupPassword,
-    });
-
     setLoading(false);
-    if (signInErr) {
-      toast.error("Account created but sign-in failed. Try logging in.");
-      setStep("login");
-    } else {
-      setStep("confirm-sent");
-      toast.success("Account created! Check your email to confirm.");
-    }
+    setStep("confirm-sent");
+    toast.success("Account created! Check your email to confirm.");
   };
 
   const resetToEmail = () => {
