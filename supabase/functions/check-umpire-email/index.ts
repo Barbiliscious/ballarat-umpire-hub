@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
         await supabaseAdmin.auth.admin.createUser({
           email: email.trim(),
           password,
-          email_confirm: true,
+          email_confirm: false, // Changed to send confirmation email instead of skipping verification
           user_metadata: { full_name: full_name.trim() },
         });
 

@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, Mail, MailCheck, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
-type Step = "email" | "login" | "signup" | "magic-sent";
+type Step = "email" | "login" | "signup" | "magic-sent" | "confirm-sent"; // Added confirm-sent step
 
 const UmpireLogin = () => {
   const navigate = useNavigate();
@@ -148,7 +148,8 @@ const UmpireLogin = () => {
       toast.error("Account created but sign-in failed. Try logging in.");
       setStep("login");
     } else {
-      navigate("/umpire/vote");
+      setStep("confirm-sent");
+      toast.success("Account created! Check your email to confirm.");
     }
   };
 
@@ -187,6 +188,7 @@ const UmpireLogin = () => {
               {step === "login" && null}
               {step === "signup" && "Create your umpire account"}
               {step === "magic-sent" && "We've sent a sign-in link to your email"}
+              {step === "confirm-sent" && "Check your email to activate your account"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -368,6 +370,19 @@ const UmpireLogin = () => {
                 </div>
                 <Button type="button" variant="ghost" className="w-full" onClick={resetToEmail}>
                   Use a different email
+                </Button>
+              </div>
+            )}
+
+            {/* Account created, confirm sent */}
+            {step === "confirm-sent" && (
+              <div className="space-y-4 text-center">
+                <MailCheck className="mx-auto h-12 w-12 text-primary" />
+                <p className="text-sm text-muted-foreground">
+                  We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account, then come back here to sign in.
+                </p>
+                <Button variant="outline" className="w-full" onClick={resetToEmail}>
+                  Back to sign in
                 </Button>
               </div>
             )}
