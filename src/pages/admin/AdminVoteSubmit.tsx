@@ -170,8 +170,7 @@ const AdminVoteSubmit = () => {
     }
     const names = new Set<string>();
     voteLines.forEach((vl) => {
-      if (!vl.playerName.trim()) errs.push(`Player name for ${vl.votes}-vote is required`);
-      if (!vl.playerNumber.trim()) errs.push(`Player number for ${vl.votes}-vote is required`);
+      if (!vl.playerName.trim() && !vl.playerNumber.trim()) errs.push(`Enter a player name or number for the ${vl.votes}-vote`);
       if (vl.playerNumber && !/^\d+$/.test(vl.playerNumber.trim())) errs.push(`Player number for ${vl.votes}-vote must be numeric`);
       if (!vl.teamId) errs.push(`Team for ${vl.votes}-vote is required`);
       const key = `${vl.playerName.trim().toLowerCase()}-${vl.playerNumber.trim()}-${vl.teamId}`;
