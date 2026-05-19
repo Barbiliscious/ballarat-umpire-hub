@@ -105,6 +105,81 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (action === "signin") {
+      const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+        type: "magiclink",
+        email: email.trim(),
+      });
+
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ hashed_token: data.properties.hashed_token }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "create-and-signin") {
+      const { full_name } = body;
+
+      // Check if user already exists via profiles table
+      const { data: existingProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("user_id")
+        .eq("email", email.trim().toLowerCase())
+        .maybeSingle();
+
+      if (existingProfile) {
+        return new Response(JSON.stringify({ error: "Account already exists" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: newUser, error: createErr } =
+        await supabaseAdmin.auth.admin.createUser({
+          email: email.trim(),
+          password: crypto.randomUUID(),
+          email_confirm: true,
+          user_metadata: { full_name: full_name.trim() },
+        });
+
+      if (createErr) {
+        return new Response(JSON.stringify({ error: createErr.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Update profile with full_name (trigger creates profile with umpire role)
+      await supabaseAdmin
+        .from("profiles")
+        .update({ full_name: full_name.trim() })
+        .eq("user_id", newUser.user.id);
+
+      const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+        type: "magiclink",
+        email: email.trim(),
+      });
+
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ hashed_token: data.properties.hashed_token }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
