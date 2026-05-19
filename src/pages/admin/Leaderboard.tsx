@@ -27,6 +27,7 @@ interface LeaderEntry {
   playerName: string;
   playerNumber: number;
   teamId: string;
+  divisionId: string;
   threeVotes: number;
   twoVotes: number;
   oneVotes: number;
@@ -72,15 +73,18 @@ const Leaderboard = () => {
     );
 
     const map = new Map<string, LeaderEntry>();
+    const submissionsById = new Map(submissions.map((s) => [s.id, s]));
     voteLines
       .filter((vl) => approvedIds.has(vl.submission_id))
       .forEach((vl) => {
+        const submission = submissionsById.get(vl.submission_id);
         const key = `${vl.player_name.trim().toLowerCase()}-${vl.player_number}-${vl.team_id}`;
         if (!map.has(key)) {
           map.set(key, {
             playerName: vl.player_name,
             playerNumber: vl.player_number,
             teamId: vl.team_id,
+            divisionId: submission?.division_id || "",
             threeVotes: 0,
             twoVotes: 0,
             oneVotes: 0,
@@ -88,6 +92,7 @@ const Leaderboard = () => {
           });
         }
         const entry = map.get(key)!;
+        entry.divisionId = submission?.division_id || entry.divisionId;
         if (vl.votes === 3) entry.threeVotes++;
         else if (vl.votes === 2) entry.twoVotes++;
         else if (vl.votes === 1) entry.oneVotes++;
@@ -166,6 +171,7 @@ const Leaderboard = () => {
                 <TableHead className="w-16">Rank</TableHead>
                 <TableHead>Player Name</TableHead>
                 <TableHead>Number</TableHead>
+                <TableHead>Division</TableHead>
                 <TableHead>Team</TableHead>
                 <TableHead className="text-center">3-votes</TableHead>
                 <TableHead className="text-center">2-votes</TableHead>
@@ -186,6 +192,7 @@ const Leaderboard = () => {
                   <TableCell className="font-bold text-muted-foreground">{i + 1}</TableCell>
                   <TableCell className="font-medium">{e.playerName}</TableCell>
                   <TableCell>#{e.playerNumber}</TableCell>
+                  <TableCell>{getName(divisions, e.divisionId)}</TableCell>
                   <TableCell>{getName(teams, e.teamId)}</TableCell>
                   <TableCell className="text-center">{e.threeVotes}</TableCell>
                   <TableCell className="text-center">{e.twoVotes}</TableCell>

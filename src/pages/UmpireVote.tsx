@@ -63,6 +63,7 @@ const UmpireVote = () => {
   const [homeTeam, setHomeTeam] = useState("");
   const [awayTeam, setAwayTeam] = useState("");
   const [voteLines, setVoteLines] = useState<VoteLine[]>(JSON.parse(JSON.stringify(seniorVotes)));
+  const [knownPlayerNames, setKnownPlayerNames] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -99,6 +100,23 @@ const UmpireVote = () => {
   useEffect(() => {
     if (!authLoading && !user) navigate("/umpire/login");
   }, [user, authLoading, navigate]);
+
+  useEffect(() => {
+    supabase
+      .from("vote_lines")
+      .select("player_name")
+      .not("player_name", "is", null)
+      .then(({ data }) => {
+        const names = Array.from(
+          new Set(
+            (data || [])
+              .map((row) => row.player_name?.trim())
+              .filter((name): name is string => Boolean(name))
+          )
+        ).sort((a, b) => a.localeCompare(b));
+        setKnownPlayerNames(names);
+      });
+  }, []);
 
   // Check profile for name & load own name
   useEffect(() => {
@@ -713,78 +731,86 @@ const UmpireVote = () => {
 
         {/* Step 2: Votes */}
         {step === 2 && (
-          <Card className="animate-fade-in">
-            <CardHeader>
-              <CardTitle>Player Votes</CardTitle>
-              <CardDescription>
-                {isCustomMode
-                  ? `${customHomeTeam} vs ${customAwayTeam}`
-                  : `${getTeamName(homeTeam)} vs ${getTeamName(awayTeam)}`}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {voteLines.map((vl, idx) => (
-                <div key={idx} className={`space-y-3 p-4 rounded-lg ${vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "vote-badge-3" : "vote-badge-1"}`}>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "default" : "secondary"} className={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "bg-gold text-gold-foreground text-base px-3" : "text-base px-3"}>
-                      {vl.votes}
-                    </Badge>
-                    <span className="font-semibold">
-                      {vl.label}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Player Name</Label>
-                      <Input
-                        placeholder="Player name"
-                        value={vl.playerName}
-                        onChange={(e) => updateVoteLine(idx, "playerName", e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Number</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="99"
-                        placeholder="#"
-                        value={vl.playerNumber}
-                        onChange={(e) => updateVoteLine(idx, "playerNumber", e.target.value)}
-                        inputMode="numeric"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Team</Label>
-                    <Select value={vl.teamId} onValueChange={(v) => updateVoteLine(idx, "teamId", v)} required>
-                      <SelectTrigger><SelectValue placeholder="Select team" /></SelectTrigger>
-                      <SelectContent>
-                        {matchTeams().map((t) => (
-                          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+          <>
+            <datalist id="player-names-list">
+              {knownPlayerNames.map((name) => (
+                <option key={name} value={name} />
               ))}
+            </datalist>
+            <Card className="animate-fade-in">
+              <CardHeader>
+                <CardTitle>Player Votes</CardTitle>
+                <CardDescription>
+                  {isCustomMode
+                    ? `${customHomeTeam} vs ${customAwayTeam}`
+                    : `${getTeamName(homeTeam)} vs ${getTeamName(awayTeam)}`}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {voteLines.map((vl, idx) => (
+                  <div key={idx} className={`space-y-3 p-4 rounded-lg ${vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "vote-badge-3" : "vote-badge-1"}`}>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "default" : "secondary"} className={vl.votes === Math.max(...voteLines.map(v => v.votes)) ? "bg-gold text-gold-foreground text-base px-3" : "text-base px-3"}>
+                        {vl.votes}
+                      </Badge>
+                      <span className="font-semibold">
+                        {vl.label}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Player Name</Label>
+                        <Input
+                          list="player-names-list"
+                          placeholder="Player name"
+                          value={vl.playerName}
+                          onChange={(e) => updateVoteLine(idx, "playerName", e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Number</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="99"
+                          placeholder="#"
+                          value={vl.playerNumber}
+                          onChange={(e) => updateVoteLine(idx, "playerNumber", e.target.value)}
+                          inputMode="numeric"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Team</Label>
+                      <Select value={vl.teamId} onValueChange={(v) => updateVoteLine(idx, "teamId", v)} required>
+                        <SelectTrigger><SelectValue placeholder="Select team" /></SelectTrigger>
+                        <SelectContent>
+                          {matchTeams().map((t) => (
+                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ))}
 
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setStep(1)} className="flex-1">Back</Button>
-                <Button onClick={() => {
-                  const hasEmpty = voteLines.some(vl => (!vl.playerName.trim() && !vl.playerNumber.trim()) || !vl.teamId);
-                  if (hasEmpty) {
-                    toast.error("Please fill in all player details before continuing.");
-                    return;
-                  }
-                  setErrors([]); 
-                  setStep(3); 
-                }} className="flex-1">
-                  Next: Review
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => setStep(1)} className="flex-1">Back</Button>
+                  <Button onClick={() => {
+                    const hasEmpty = voteLines.some(vl => (!vl.playerName.trim() && !vl.playerNumber.trim()) || !vl.teamId);
+                    if (hasEmpty) {
+                      toast.error("Please fill in all player details before continuing.");
+                      return;
+                    }
+                    setErrors([]); 
+                    setStep(3); 
+                  }} className="flex-1">
+                    Next: Review
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </>
         )}
 
         {/* Step 3: Confirm */}
