@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Mail, MailCheck, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Mail } from "lucide-react";
 import { toast } from "sonner";
 
-type Step = "email" | "login" | "signup" | "magic-sent" | "confirm-sent"; // Added confirm-sent step
+type Step = "email" | "signup";
 
 const UmpireLogin = () => {
   const navigate = useNavigate();
@@ -16,15 +16,7 @@ const UmpireLogin = () => {
   const [step, setStep] = useState<Step>("email");
   const [loading, setLoading] = useState(false);
 
-  // Login state
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-
-  // Signup state
   const [fullName, setFullName] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showSignupPassword, setShowSignupPassword] = useState(false);
 
   const handleCheckEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +41,28 @@ const UmpireLogin = () => {
       }
 
       if (data?.exists) {
-        setStep("login");
+        const { data: signinData, error: signinError } = await supabase.functions.invoke("check-umpire-email", {
+          body: { action: "signin", email: email.trim() },
+        });
+
+        if (signinError || signinData?.error || !signinData?.hashed_token) {
+          toast.error(signinData?.error || signinError?.message || "Failed to sign in");
+          setLoading(false);
+          return;
+        }
+
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: signinData.hashed_token,
+          type: "email",
+        });
+
+        if (verifyError) {
+          toast.error(verifyError.message);
+          setLoading(false);
+          return;
+        }
+
+        navigate("/umpire/vote");
       } else {
         setStep("signup");
       }
@@ -59,95 +72,45 @@ const UmpireLogin = () => {
     setLoading(false);
   };
 
-  const handlePasswordLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!password) return;
-    setLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      navigate("/umpire/vote");
-    }
-  };
-
-  const handleSendMagicLink = async () => {
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        emailRedirectTo: window.location.origin + "/umpire/vote",
-      },
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      setStep("magic-sent");
-      toast.success("Check your email for the sign-in link");
-    }
-  };
-
-  const handleForgotPassword = async () => {
-    setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Password reset email sent");
-    }
-  };
-
-  const handleCreateAccount = async (e: React.FormEvent) => {
+  const handleSignupAndLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim()) {
       toast.error("Please enter your full name");
-      return;
-    }
-    if (signupPassword.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return;
-    }
-    if (signupPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
       return;
     }
 
     setLoading(true);
     const { data, error } = await supabase.functions.invoke("check-umpire-email", {
       body: {
-        action: "create",
+        action: "create-and-signin",
         email: email.trim(),
-        password: signupPassword,
         full_name: fullName.trim(),
       },
     });
 
-    if (error || data?.error) {
+    if (error || data?.error || !data?.hashed_token) {
       toast.error(data?.error || error?.message || "Failed to create account");
       setLoading(false);
       return;
     }
 
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      token_hash: data.hashed_token,
+      type: "email",
+    });
+
+    if (verifyError) {
+      toast.error(verifyError.message);
+      setLoading(false);
+      return;
+    }
+
     setLoading(false);
-    setStep("confirm-sent");
-    toast.success("Account created! Check your email to confirm.");
+    navigate("/umpire/vote");
   };
 
   const resetToEmail = () => {
     setStep("email");
-    setPassword("");
-    setSignupPassword("");
-    setConfirmPassword("");
     setFullName("");
   };
 
@@ -174,11 +137,8 @@ const UmpireLogin = () => {
             <CardTitle className="text-2xl">Umpire Sign In</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">After each match, use this to record the best players in your game.</p>
             <CardDescription>
-              {step === "email" && "Enter your email address — we'll send you a sign-in link or you can use your password"}
-              {step === "login" && null}
-              {step === "signup" && "Create your umpire account"}
-              {step === "magic-sent" && "We've sent a sign-in link to your email"}
-              {step === "confirm-sent" && "Check your email to activate your account"}
+              {step === "email" && "Enter your email to get started"}
+              {step === "signup" && "Just enter your name to continue"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -206,91 +166,15 @@ const UmpireLogin = () => {
               </form>
             )}
 
-            {/* Step 2a: Existing user login */}
-            {step === "login" && (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground text-center">
-                  Signing in as <strong>{email}</strong>
-                </p>
-                <Button
-                  type="button"
-                  variant="default"
-                  size="lg"
-                  className="w-full text-base font-semibold py-6"
-                  onClick={handleSendMagicLink}
-                  disabled={loading}
-                >
-                  Send me a One-Time Link
-                </Button>
-                <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                  <div className="flex-1 border-t" />
-                  <span>or use your password</span>
-                  <div className="flex-1 border-t" />
-                </div>
-                <form onSubmit={handlePasswordLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Enter your password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Signing in..." : "Sign in"}
-                  </Button>
-                </form>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="w-full"
-                  onClick={handleForgotPassword}
-                  disabled={loading}
-                >
-                  Forgot password?
-                </Button>
-              </div>
-            )}
-
-            {/* Step 2b: New user signup */}
+            {/* Step 2: New user signup */}
             {step === "signup" && (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground text-center">
-                  Creating account for <strong>{email}</strong>
+                  Welcome! What's your name?
                 </p>
-                <Button
-                  type="button"
-                  variant="default"
-                  size="lg"
-                  className="w-full text-base font-semibold py-6"
-                  onClick={handleSendMagicLink}
-                  disabled={loading}
-                >
-                  Send me a One-Time Link
-                </Button>
-                <div className="relative flex items-center gap-3 my-2">
-                  <div className="flex-1 border-t border-border" />
-                  <span className="text-xs text-muted-foreground">or Create an Account</span>
-                  <div className="flex-1 border-t border-border" />
-                </div>
-                <form onSubmit={handleCreateAccount} className="space-y-4">
+                <form onSubmit={handleSignupAndLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="fullName">Full name *</Label>
+                    <Label htmlFor="fullName">Full name</Label>
                     <Input
                       id="fullName"
                       type="text"
@@ -301,78 +185,12 @@ const UmpireLogin = () => {
                       maxLength={100}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signupPassword">Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="signupPassword"
-                        type={showSignupPassword ? "text" : "password"}
-                        placeholder="Create a password (min 8 chars)"
-                        value={signupPassword}
-                        onChange={(e) => setSignupPassword(e.target.value)}
-                        required
-                        minLength={8}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                        onClick={() => setShowSignupPassword(!showSignupPassword)}
-                      >
-                        {showSignupPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm password</Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      placeholder="Confirm your password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      required
-                      minLength={8}
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Creating..." : "Create account"}
+                  <Button type="submit" size="lg" className="w-full text-base font-semibold py-6" disabled={loading}>
+                    {loading ? "Continuing..." : "Continue to voting"}
                   </Button>
                 </form>
                 <Button type="button" variant="link" size="sm" className="w-full" onClick={resetToEmail}>
                   Use a different email
-                </Button>
-              </div>
-            )}
-
-            {/* Magic link sent */}
-            {step === "magic-sent" && (
-              <div className="space-y-4 text-center">
-                <div className="flex justify-center">
-                  <MailCheck className="h-12 w-12 text-primary" />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Click the link in the email sent to <strong>{email}</strong> to sign in.
-                </p>
-                <div className="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 text-left">
-                  ⚠️ Can't find it? Check your <strong>junk</strong> or <strong>spam</strong> folder — these emails sometimes get filtered.
-                </div>
-                <Button type="button" variant="ghost" className="w-full" onClick={resetToEmail}>
-                  Use a different email
-                </Button>
-              </div>
-            )}
-
-            {/* Account created, confirm sent */}
-            {step === "confirm-sent" && (
-              <div className="space-y-4 text-center">
-                <MailCheck className="mx-auto h-12 w-12 text-primary" />
-                <p className="text-sm text-muted-foreground">
-                  We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account, then come back here to sign in.
-                </p>
-                <Button variant="outline" className="w-full" onClick={resetToEmail}>
-                  Back to sign in
                 </Button>
               </div>
             )}
