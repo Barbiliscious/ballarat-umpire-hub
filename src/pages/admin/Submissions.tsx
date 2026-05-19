@@ -444,7 +444,11 @@ const Submissions = () => {
       </Card>
 
       <Dialog open={!!approveDialogSub} onOpenChange={(open) => !open && setApproveDialogSub(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent
+          className="max-w-lg"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <DialogHeader><DialogTitle>Review & Approve Submission</DialogTitle></DialogHeader>
           {approveDialogSub && (
             <div className="space-y-4 py-2">
