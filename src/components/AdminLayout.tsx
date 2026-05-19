@@ -65,11 +65,11 @@ const AdminLayout = () => {
   return (
     <div className="min-h-screen flex bg-secondary">
       {/* Sidebar */}
-      <aside className="hidden md:flex w-60 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
+      <aside className="hidden md:flex w-60 h-screen flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
         <div className="p-4 border-b border-sidebar-border">
           <h1 className="font-bold text-sm uppercase tracking-wider text-sidebar-primary">BHA Admin</h1>
         </div>
-        <nav className="flex-1 p-2 space-y-1">
+        <nav className="flex-1 overflow-y-auto p-2 space-y-1">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -88,7 +88,7 @@ const AdminLayout = () => {
             </NavLink>
           ))}
         </nav>
-        <div className="p-3 border-t border-sidebar-border space-y-1">
+        <div className="mt-auto shrink-0 p-3 border-t border-sidebar-border space-y-1">
           <Button
             variant="ghost"
             size="sm"

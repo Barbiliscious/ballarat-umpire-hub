@@ -14,7 +14,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Search, Download, Lock, Unlock, CheckCircle, Trash2, Eye, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Download, CheckCircle, Trash2, Eye, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 interface Submission {
@@ -79,6 +79,7 @@ const Submissions = () => {
   const [profilesMap, setProfilesMap] = useState<Record<string, { email: string; full_name: string | null }>>({});
   const [filterRound, setFilterRound] = useState("all");
   const [filterDivision, setFilterDivision] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("pending");
   const [search, setSearch] = useState("");
   const [showDeleted, setShowDeleted] = useState(false);
   const [voteEdits, setVoteEdits] = useState<VoteEdit[]>([]);
@@ -162,6 +163,8 @@ const Submissions = () => {
     if (showDeleted && !s.is_deleted) return false;
     if (filterRound !== "all" && s.round_id !== filterRound) return false;
     if (filterDivision !== "all" && s.division_id !== filterDivision) return false;
+    if (filterStatus === "pending" && s.is_approved) return false;
+    if (filterStatus === "approved" && !s.is_approved) return false;
     if (search) {
       const q = search.toLowerCase();
       const umpire = getUmpireName(s).toLowerCase();
@@ -171,12 +174,6 @@ const Submissions = () => {
     }
     return true;
   });
-
-  const toggleLock = async (sub: Submission) => {
-    const { error } = await supabase.from("vote_submissions").update({ is_locked: !sub.is_locked }).eq("id", sub.id);
-    if (error) toast.error(error.message);
-    else { toast.success(sub.is_locked ? "Submission reopened" : "Submission locked"); fetchAll(); }
-  };
 
   const openApproveDialog = (sub: Submission) => {
     const lines = voteLines.filter(vl => vl.submission_id === sub.id).sort((a, b) => b.votes - a.votes);
@@ -245,6 +242,12 @@ const Submissions = () => {
     else { toast.success("Submission restored"); fetchAll(); }
   };
 
+  const unapproveSubmission = async (sub: Submission) => {
+    const { error } = await supabase.from("vote_submissions").update({ is_approved: false }).eq("id", sub.id);
+    if (error) toast.error(error.message);
+    else { toast.success("Submission unapproved"); fetchAll(); }
+  };
+
   const exportCsv = () => {
     const rows = [["Round", "Division", "Umpire", "Home Team", "Away Team", "Votes", "Player", "Number", "Team", "Status", "Submitted"]];
     filtered.forEach((s) => {
@@ -279,6 +282,14 @@ const Submissions = () => {
         <Select value={filterDivision} onValueChange={setFilterDivision}>
           <SelectTrigger className="w-40"><SelectValue placeholder="All Divisions" /></SelectTrigger>
           <SelectContent><SelectItem value="all">All Divisions</SelectItem>{divisions.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+        </Select>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="Pending" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="all">All Submissions</SelectItem>
+          </SelectContent>
         </Select>
         <div className="flex items-center gap-2">
           <Switch id="show-deleted" checked={showDeleted} onCheckedChange={setShowDeleted} />
@@ -371,9 +382,25 @@ const Submissions = () => {
                                 <CheckCircle className="h-3.5 w-3.5" />
                               </Button>
                             )}
-                            <Button variant="ghost" size="sm" onClick={() => toggleLock(s)} title={s.is_locked ? "Reopen" : "Lock"}>
-                              {s.is_locked ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-                            </Button>
+                            {s.is_approved && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="sm" title="Unapprove">
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Unapprove Submission</AlertDialogTitle>
+                                    <AlertDialogDescription>Are you sure you want to unapprove this submission? It will be removed from the leaderboard until re-approved.</AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => unapproveSubmission(s)}>Confirm</AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button variant="ghost" size="sm" title="Delete" className="text-destructive hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
