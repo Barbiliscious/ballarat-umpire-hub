@@ -740,7 +740,6 @@ const UmpireVote = () => {
                         placeholder="Player name"
                         value={vl.playerName}
                         onChange={(e) => updateVoteLine(idx, "playerName", e.target.value)}
-                        required
                       />
                     </div>
                     <div className="space-y-1">
@@ -753,7 +752,6 @@ const UmpireVote = () => {
                         value={vl.playerNumber}
                         onChange={(e) => updateVoteLine(idx, "playerNumber", e.target.value)}
                         inputMode="numeric"
-                        required
                       />
                     </div>
                   </div>
@@ -774,7 +772,7 @@ const UmpireVote = () => {
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => setStep(1)} className="flex-1">Back</Button>
                 <Button onClick={() => {
-                  const hasEmpty = voteLines.some(vl => !vl.playerName.trim() || !vl.playerNumber.trim() || !vl.teamId);
+                  const hasEmpty = voteLines.some(vl => (!vl.playerName.trim() && !vl.playerNumber.trim()) || !vl.teamId);
                   if (hasEmpty) {
                     toast.error("Please fill in all player details before continuing.");
                     return;
